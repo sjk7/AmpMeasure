@@ -1,0 +1,272 @@
+﻿using System;
+using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain
+    {
+        private async void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!CheckUnsavedChanges()) return;
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                await LoadWorksheetAsync(openFileDialog1.FileName);
+            }
+        }
+
+        private async void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsync();
+        }
+
+        private async void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsAsync();
+        }
+
+        private async Task<bool> PerformSaveAsync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                return await PerformSaveAsAsync();
+            }
+            else
+            {
+                return await SaveWorksheetAsync(_currentFilePath);
+            }
+        }
+
+        private async Task<bool> PerformSaveAsAsync()
+        {
+            if (!string.IsNullOrEmpty(_currentFilePath))
+            {
+                saveFileDialog1.FileName = Path.GetFileName(_currentFilePath);
+                saveFileDialog1.InitialDirectory = Path.GetDirectoryName(_currentFilePath);
+            }
+            else
+            {
+                saveFileDialog1.FileName = "Worksheet.xml";
+                saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            
+            if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                return await SaveWorksheetAsync(saveFileDialog1.FileName);
+            }
+            return false;
+        }
+
+        private bool CheckUnsavedChanges()
+        {
+            if (!_isDirty) return true;
+
+            var result = MessageBox.Show("Do you want to save changes to the current worksheet?", "Unsaved Changes", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                return PerformSaveSync();
+            }
+            else if (result == DialogResult.No)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        private bool PerformSaveSync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                saveFileDialog1.FileName = "Worksheet.xml";
+                saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                
+                if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    return SaveWorksheetSync(saveFileDialog1.FileName);
+                }
+                return false;
+            }
+            else
+            {
+                return SaveWorksheetSync(_currentFilePath);
+            }
+        }
+
+        private void autoSaveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            autoSaveTimer.Enabled = autoSaveToolStripMenuItem.Checked;
+        }
+
+        private async void autoSaveTimer_Tick(object sender, EventArgs e)
+        {
+            if (_isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                await AutoSaveWorksheet(_currentFilePath);
+            }
+        }
+
+        private void darkModeToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            bool darkMode = darkModeToolStripMenuItem.Checked;
+            Properties.Settings.Default.DarkMode = darkMode;
+            Properties.Settings.Default.Save();
+            ApplyTheme(darkMode);
+        }
+
+        private void resetColumnWidthsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnWidthSettings();
+            MessageBox.Show("Column widths have been reset to default.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void resetColumnOrderToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnOrderSettings();
+            MessageBox.Show("Column order has been reset to default.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void clearGridToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Are you sure you want to clear all rows from the grid?", "Confirm Clear",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                ClearVirtualData();
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void viewPerformanceLogToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            string logPath = PerformanceProfiler.GetLogFilePath();
+            
+            if (File.Exists(logPath))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start("notepad.exe", logPath);
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to open performance log:\n{ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
+            else
+            {
+                MessageBox.Show($"Performance log file not found.\n\n" +
+                    $"The log is created when you:\n" +
+                    $"  • Save a worksheet (File > Save or Save As)\n" +
+                    $"  • Load a worksheet (File > Open)\n" +
+                    $"  • Generate test data (View > Generate Test Data)\n\n" +
+                    $"Try saving or loading a file first!\n\n" +
+                    $"Expected location:\n{logPath}", 
+                    "Performance Log", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (autoSaveToolStripMenuItem.Checked && _isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                SaveWorksheetSync(_currentFilePath, true);
+            }
+            else if (!CheckUnsavedChanges())
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            _profiler.WriteAllTimeStats();
+
+            base.OnFormClosing(e);
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+            SaveColumnOrder();
+            SaveWindowSettings();
+        }
+
+        private void LoadWindowSettings()
+        {
+            try
+            {
+                _isLoadingWindow = true;
+
+                var savedSize = Properties.Settings.Default.WindowSize;
+                var savedLocation = Properties.Settings.Default.WindowLocation;
+                var savedState = Properties.Settings.Default.WindowState;
+
+                if (savedSize.Width > 0 && savedSize.Height > 0)
+                {
+                    this.Size = savedSize;
+                }
+
+                if (savedLocation.X != 0 || savedLocation.Y != 0)
+                {
+                    if (IsLocationVisible(savedLocation, this.Size))
+                    {
+                        this.StartPosition = FormStartPosition.Manual;
+                        this.Location = savedLocation;
+                    }
+                }
+
+                if (savedState != FormWindowState.Minimized)
+                {
+                    this.WindowState = savedState;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load window settings: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadingWindow = false;
+            }
+        }
+
+        private void SaveWindowSettings()
+        {
+            if (_isLoadingWindow)
+                return;
+
+            try
+            {
+                if (this.WindowState == FormWindowState.Normal)
+                {
+                    Properties.Settings.Default.WindowSize = this.Size;
+                    Properties.Settings.Default.WindowLocation = this.Location;
+                }
+                
+                Properties.Settings.Default.WindowState = this.WindowState;
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save window settings: {ex.Message}");
+            }
+        }
+
+        private bool IsLocationVisible(Point location, Size size)
+        {
+            Rectangle formRectangle = new Rectangle(location, size);
+
+            foreach (Screen screen in Screen.AllScreens)
+            {
+                if (screen.WorkingArea.IntersectsWith(formRectangle))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+}

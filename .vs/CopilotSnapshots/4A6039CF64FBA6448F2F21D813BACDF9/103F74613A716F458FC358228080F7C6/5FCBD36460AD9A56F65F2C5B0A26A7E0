@@ -1,0 +1,132 @@
+﻿using System;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain
+    {
+        private async void generateTestDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var result = MessageBox.Show(
+                "This will generate 10,000 test rows with random data.\n\n" +
+                "The grid will be cleared and new data will be generated.\n" +
+                "This may take a moment.\n\n" +
+                "Continue?",
+                "Generate Test Data",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                await GenerateTestDataAsync();
+            }
+        }
+
+        private async Task GenerateTestDataAsync()
+        {
+            try
+            {
+                SetBusy(true, "Generating 10,000 test rows...");
+                
+                _isLoadingColumns = true;
+                dataGridView1.Rows.Clear();
+
+                await Task.Run(() =>
+                {
+                    System.Threading.Thread.Sleep(100);
+                });
+
+                Random random = new Random();
+                int batchSize = 1000;
+                
+                for (int batch = 0; batch < 10; batch++)
+                {
+                    SetBusy(true, $"Generating test data: {(batch + 1) * batchSize} / 10,000 rows...");
+                    
+                    await Task.Run(() =>
+                    {
+                        for (int i = 0; i < batchSize; i++)
+                        {
+                            double peakVolts = Math.Round(random.NextDouble() * 100 + 10, 2);
+                            double supplyCurrent = Math.Round(random.NextDouble() * 5 + 0.5, 3);
+                            double supplyVoltage = Math.Round(random.NextDouble() * 20 + 40, 1);
+                            double loadResistance = Math.Round(random.NextDouble() * 100 + 20, 1);
+                            double powerOut = Math.Round(random.NextDouble() * 50 + 10, 2);
+
+                            this.Invoke((MethodInvoker)delegate
+                            {
+                                int rowIndex = dataGridView1.Rows.Add();
+                                var row = dataGridView1.Rows[rowIndex];
+
+                                row.Cells["colPeakVolts"].Value = peakVolts;
+                                row.Cells["colSupplyCurrent"].Value = supplyCurrent;
+                                row.Cells["colSupplyVoltage"].Value = supplyVoltage;
+                                row.Cells["colSupplyVoltage"].Tag = "user-edited";
+                                row.Cells["colLoadResistance"].Value = loadResistance;
+                                row.Cells["colLoadResistance"].Tag = "user-edited";
+                                row.Cells["colPowerOut"].Value = powerOut;
+                                row.Cells["colDateTime"].Value = DateTime.Now.AddMinutes(-random.Next(0, 10000)).ToString("g");
+
+                                double rmsVolts = peakVolts * 0.70710678;
+                                row.Cells["colRMSVolts"].Value = Math.Round(rmsVolts, 3);
+
+                                double powerIn = supplyVoltage * supplyCurrent;
+                                row.Cells["colPowerIn"].Value = Math.Round(powerIn, 3);
+
+                                double efficiency = 0;
+                                if (powerIn != 0)
+                                {
+                                    efficiency = (powerOut / powerIn) * 100;
+                                }
+                                row.Cells["colEfficiency"].Value = Math.Round(efficiency, 2);
+                            });
+                        }
+                    });
+
+                    await Task.Delay(10);
+                }
+
+                _isLoadingColumns = false;
+                _isDirty = true;
+                UpdateTitle();
+
+                SetBusy(true, "Saving test data file...");
+                
+                string testFilePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    $"AmpMeasure_TestData_10K_{DateTime.Now:yyyyMMdd_HHmmss}.xml");
+
+                await SaveWorksheetAsync(testFilePath, true);
+
+                SetBusy(true, "Reloading test data file...");
+                await Task.Delay(500);
+                
+                dataGridView1.Rows.Clear();
+                _currentFilePath = null;
+                await LoadWorksheetAsync(testFilePath);
+
+                SetBusy(false);
+
+                MessageBox.Show(
+                    $"Test data generated successfully!\n\n" +
+                    $"10,000 rows created, saved, and reloaded.\n\n" +
+                    $"File saved to:\n{testFilePath}",
+                    "Test Data Complete",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                SetBusy(false);
+                MessageBox.Show(
+                    $"Error generating test data:\n{ex.Message}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+    }
+}

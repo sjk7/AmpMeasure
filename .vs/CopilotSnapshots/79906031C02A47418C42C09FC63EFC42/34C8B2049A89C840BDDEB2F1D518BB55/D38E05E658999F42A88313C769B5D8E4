@@ -1,0 +1,126 @@
+﻿namespace AmpMeasure
+{
+    partial class AmpMeasureMain
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this.dataGridView1 = new System.Windows.Forms.DataGridView();
+            this.colPeakVolts = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colRMSVolts = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSupplyCurrent = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSupplyVoltage = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colPowerIn = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colPowerOut = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colEfficiency = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLoadResistance = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
+            this.SuspendLayout();
+            // 
+            // dataGridView1
+            // 
+            this.dataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colPeakVolts,
+            this.colRMSVolts,
+            this.colSupplyCurrent,
+            this.colSupplyVoltage,
+            this.colPowerIn,
+            this.colPowerOut,
+            this.colEfficiency,
+            this.colLoadResistance});
+            this.dataGridView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.dataGridView1.Location = new System.Drawing.Point(0, 0);
+            this.dataGridView1.Name = "dataGridView1";
+            this.dataGridView1.Size = new System.Drawing.Size(800, 450);
+            this.dataGridView1.TabIndex = 0;
+            // 
+            // colPeakVolts
+            // 
+            this.colPeakVolts.HeaderText = "Peak Volts";
+            this.colPeakVolts.Name = "colPeakVolts";
+            // 
+            // colRMSVolts
+            // 
+            this.colRMSVolts.HeaderText = "RMS Volts";
+            this.colRMSVolts.Name = "colRMSVolts";
+            // 
+            // colSupplyCurrent
+            // 
+            this.colSupplyCurrent.HeaderText = "Supply Current";
+            this.colSupplyCurrent.Name = "colSupplyCurrent";
+            // 
+            // colSupplyVoltage
+            // 
+            this.colSupplyVoltage.HeaderText = "Supply Voltage";
+            this.colSupplyVoltage.Name = "colSupplyVoltage";
+            // 
+            // colPowerIn
+            // 
+            this.colPowerIn.HeaderText = "Power In";
+            this.colPowerIn.Name = "colPowerIn";
+            // 
+            // colPowerOut
+            // 
+            this.colPowerOut.HeaderText = "Power Out";
+            this.colPowerOut.Name = "colPowerOut";
+            // 
+            // colEfficiency
+            // 
+            this.colEfficiency.HeaderText = "Efficiency";
+            this.colEfficiency.Name = "colEfficiency";
+            // 
+            // colLoadResistance
+            // 
+            this.colLoadResistance.HeaderText = "Load Resistance";
+            this.colLoadResistance.Name = "colLoadResistance";
+            // 
+            // AmpMeasureMain
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.dataGridView1);
+            this.Name = "AmpMeasureMain";
+            this.Text = "Amp Measure";
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).EndInit();
+            this.ResumeLayout(false);
+        }
+
+        #endregion
+
+        private System.Windows.Forms.DataGridView dataGridView1;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPeakVolts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colRMSVolts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colSupplyCurrent;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colSupplyVoltage;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPowerIn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPowerOut;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colEfficiency;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLoadResistance;
+    }
+}
+

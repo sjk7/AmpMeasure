@@ -1,0 +1,187 @@
+﻿// This file was previously named AmpMeasureForm.Main.cs.
+// To ensure the WinForms designer works, rename this file to AmpMeasureForm.cs in Solution Explorer.
+// After renaming, ensure all partial class files use the same class and namespace.
+// No code changes are needed in this file.
+
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        private bool _isLoadingColumns = false;
+        private bool _isLoadingWindow = false;
+        private bool _isCalculating = false;
+        private bool _isDirty = false;
+        private string _currentFilePath = null;
+        private double _defaultSupplyVoltage = 50;
+        private double _defaultLoadResistance = 50;
+        private bool _isPropagatingValues = false;
+        private PerformanceProfiler _profiler = new PerformanceProfiler(true);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] 
+        extern static bool DestroyIcon(IntPtr handle);
+
+        public AmpMeasureMain()
+        {
+            InitializeComponent();
+            EnableColumnSorting();
+            this.dataGridView1.ColumnHeaderMouseClick += dataGridView1_ColumnHeaderMouseClick;
+
+            // Only run at runtime, not in the designer
+            if (System.ComponentModel.LicenseManager.UsageMode == System.ComponentModel.LicenseUsageMode.Designtime)
+                return;
+
+            // All runtime logic below this point
+            this.SetStyle(ControlStyles.OptimizedDoubleBuffer |
+                          ControlStyles.AllPaintingInWmPaint |
+                          ControlStyles.UserPaint, true);
+            this.UpdateStyles();
+
+            SuspendLayout();
+
+            _defaultSupplyVoltage = Properties.Settings.Default.DefaultSupplyVoltage;
+            _defaultLoadResistance = Properties.Settings.Default.DefaultLoadResistance;
+
+            darkModeToolStripMenuItem.Checked = Properties.Settings.Default.DarkMode;
+            if (Properties.Settings.Default.DarkMode)
+            {
+                ApplyTheme(true);
+            }
+
+            SetAppIcon();
+            SetDefaultFormSize();
+            InitializeGrid();
+            SetupColumnIcons();
+            SetupMenuIcons();
+            LoadColumnOrder();
+            LoadColumnWidths();
+            LoadWindowSettings();
+            UpdateMRUMenu();
+            UpdateTitle();
+
+            // Hide debug menu items on production machines
+            HideDebugMenuItems();
+
+            // Add keyboard shortcut for new entry
+            this.KeyPreview = true;
+            this.KeyDown += AmpMeasureMain_KeyDown;
+
+            _isDirty = false;
+
+            string lastWorksheet = Properties.Settings.Default.LastWorksheetPath;
+            if (!string.IsNullOrEmpty(lastWorksheet) && File.Exists(lastWorksheet))
+            {
+                this.Shown += async (s, e) => { await LoadWorksheetAsync(lastWorksheet); };
+            }
+            else
+            {
+                // Always show initial rows if no file is loaded
+                AddInitialRows(5);
+            }
+
+            ResumeLayout(true);
+
+            dataGridView1.Refresh();
+
+            // Log app startup only in debug mode
+            if (IsDebugMode())
+            {
+                _profiler.StartTimer("App Startup");
+                _profiler.StopTimer("App Startup");
+                _profiler.LogToFile($"Application Started - {_virtualDataStore.Count} initial rows");
+            }
+        }
+
+        private void UpdateTitle()
+        {
+            string fileName = string.IsNullOrEmpty(_currentFilePath) ? "Untitled" : Path.GetFileName(_currentFilePath);
+            this.Text = $"Amp Measure - {fileName}" + (_isDirty ? "*" : "");
+        }
+
+        private void SetBusy(bool busy, string message = "")
+        {
+            if (busy)
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                menuStrip1.Enabled = false;
+                dataGridView1.Enabled = false;
+                toolStripStatusLabel1.Text = message;
+            }
+            else
+            {
+                Cursor.Current = Cursors.Default;
+                menuStrip1.Enabled = true;
+                dataGridView1.Enabled = true;
+                toolStripStatusLabel1.Text = "Ready";
+            }
+        }
+
+        private List<int> _rowOriginalOrder;
+
+        private void EnableColumnSorting()
+        {
+            // Store the original order for stable sorting
+            _rowOriginalOrder = Enumerable.Range(0, _virtualDataStore.Count).ToList();
+            foreach (DataGridViewColumn col in dataGridView1.Columns)
+            {
+                col.SortMode = DataGridViewColumnSortMode.Programmatic;
+            }
+        }
+
+        private void UpdateSortGlyph()
+        {
+            // Remove glyphs from all columns
+            foreach (DataGridViewColumn col in dataGridView1.Columns)
+            {
+                col.HeaderCell.SortGlyphDirection = SortOrder.None;
+            }
+            // Set glyph for sorted column
+            if (_lastSortColumn >= 0 && _lastSortColumn < dataGridView1.Columns.Count)
+            {
+                dataGridView1.Columns[_lastSortColumn].HeaderCell.SortGlyphDirection =
+                    _lastSortAscending ? SortOrder.Ascending : SortOrder.Descending;
+            }
+        }
+
+        private int _lastSortColumn = -1;
+        private bool _lastSortAscending = true;
+
+        private void dataGridView1_ColumnHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (e.ColumnIndex < 0 || e.ColumnIndex >= dataGridView1.Columns.Count)
+                return;
+
+            // Toggle sort direction if same column, otherwise default to ascending
+            if (_lastSortColumn == e.ColumnIndex)
+                _lastSortAscending = !_lastSortAscending;
+            else
+                _lastSortAscending = true;
+            _lastSortColumn = e.ColumnIndex;
+
+            _virtualDataStore.Sort((a, b) =>
+            {
+                string sa = a[e.ColumnIndex] ?? string.Empty;
+                string sb = b[e.ColumnIndex] ?? string.Empty;
+                double da, db;
+                bool isNumA = double.TryParse(sa, out da);
+                bool isNumB = double.TryParse(sb, out db);
+                int cmp;
+                if (isNumA && isNumB)
+                    cmp = da.CompareTo(db);
+                else
+                    cmp = string.Compare(sa, sb, StringComparison.CurrentCultureIgnoreCase);
+                return _lastSortAscending ? cmp : -cmp;
+            });
+            UpdateSortGlyph();
+            dataGridView1.Invalidate();
+        }
+    }
+}

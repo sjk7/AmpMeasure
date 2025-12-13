@@ -1,0 +1,54 @@
+﻿FORM CODE SPLITTING - COMPLETION NOTES
+======================================
+
+The main form code has been successfully split into logical smaller files:
+
+FILES CREATED:
+1. AmpMeasureForm.Main.cs - Main form class, constructor, utility methods
+2. AmpMeasureForm.Designer.cs - Windows Forms Designer generated code [NEW]
+3. AmpMeasureForm.Events.cs - Event handlers for menu items and form events
+4. AmpMeasureForm.Grid.cs - DataGridView initialization and grid-related code
+5. AmpMeasureForm.Columns.cs - Column width and order management
+6. AmpMeasureForm.Data.cs - Data calculation and worksheet data models
+7. AmpMeasureForm.SaveLoad.cs - File save/load operations
+8. AmpMeasureForm.Theme.cs - Dark/light theme management
+9. AmpMeasureForm.MRU.cs - Most Recently Used files functionality
+
+KNOWN ISSUE TO FIX MANUALLY:
+----------------------------
+The AmpMeasureForm.resx file was created but is EMPTY, causing build errors.
+
+TO FIX:
+1. Close Visual Studio
+2. Delete the empty AmpMeasure\AmpMeasureForm.resx file
+3. Open the AmpMeasure\AmpMeasure.csproj file in a text editor
+4. Remove these lines if they exist:
+   <EmbeddedResource Include="AmpMeasureForm.resx">
+     <DependentUpon>AmpMeasureForm.Main.cs</DependentUpon>
+   </EmbeddedResource>
+
+5. Save the .csproj file
+6. Reopen Visual Studio and reload the solution
+7. Open AmpMeasureForm.Main.cs in the designer view
+8. Make a trivial change (like resizing the form slightly)
+9. Save - this will regenerate the .resx file properly
+10. Build the solution
+
+ALTERNATIVE FIX:
+---------------
+If the above doesn't work, manually create the .resx file with this content:
+
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <metadata name="menuStrip1.TrayLocation" type="System.Drawing.Point, System.Drawing"><value>17, 17</value></metadata>
+  <metadata name="statusStrip1.TrayLocation" type="System.Drawing.Point, System.Drawing"><value>132, 17</value></metadata>
+  <metadata name="openFileDialog1.TrayLocation" type="System.Drawing.Point, System.Drawing"><value>248, 17</value></metadata>
+  <metadata name="saveFileDialog1.TrayLocation" type="System.Drawing.Point, System.Drawing"><value>385, 17</value></metadata>
+  <metadata name="autoSaveTimer.TrayLocation" type="System.Drawing.Point, System.Drawing"><value>522, 17</value></metadata>
+</root>
+
+After fixing the .resx file, the project should build successfully!

@@ -1,0 +1,430 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        private bool _isLoadingColumns = false;
+        private bool _isLoadingWindow = false;
+
+        public AmpMeasureMain()
+        {
+            InitializeComponent();
+            SetDefaultFormSize();
+            InitializeGrid();
+            SetupColumnIcons();
+            LoadColumnOrder();
+            LoadColumnWidths();
+            LoadWindowSettings();
+        }
+
+        private void SetDefaultFormSize()
+        {
+            int totalWidth = 0;
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                totalWidth += 100;
+            }
+            
+            totalWidth += SystemInformation.VerticalScrollBarWidth + 20;
+            
+            this.ClientSize = new Size(totalWidth, 450);
+        }
+
+        private void InitializeGrid()
+        {
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView1.RowTemplate.Height = 25;
+            dataGridView1.ColumnWidthChanged += DataGridView1_ColumnWidthChanged;
+            dataGridView1.ColumnDisplayIndexChanged += DataGridView1_ColumnDisplayIndexChanged;
+            
+            AddInitialRows(5);
+        }
+
+        private void SetupColumnIcons()
+        {
+            SetColumnHeaderWithIcon(colPeakVolts, "Peak Volts", ColumnIconHelper.CreatePeakVoltsIcon());
+            SetColumnHeaderWithIcon(colRMSVolts, "RMS Volts", ColumnIconHelper.CreateRMSVoltsIcon());
+            SetColumnHeaderWithIcon(colSupplyCurrent, "Supply Current", ColumnIconHelper.CreateCurrentIcon());
+            SetColumnHeaderWithIcon(colSupplyVoltage, "Supply Voltage", ColumnIconHelper.CreateVoltageIcon());
+            SetColumnHeaderWithIcon(colPowerIn, "Power In", ColumnIconHelper.CreatePowerInIcon());
+            SetColumnHeaderWithIcon(colPowerOut, "Power Out", ColumnIconHelper.CreatePowerOutIcon());
+            SetColumnHeaderWithIcon(colEfficiency, "Efficiency", ColumnIconHelper.CreateEfficiencyIcon());
+            SetColumnHeaderWithIcon(colLoadResistance, "Load Resistance", ColumnIconHelper.CreateResistanceIcon());
+        }
+
+        private void SetColumnHeaderWithIcon(DataGridViewColumn column, string text, Bitmap icon)
+        {
+            column.HeaderText = " " + text;
+            
+            if (dataGridView1.ColumnHeadersDefaultCellStyle.Padding == Padding.Empty)
+            {
+                dataGridView1.ColumnHeadersDefaultCellStyle.Padding = new Padding(20, 0, 0, 0);
+            }
+            
+            dataGridView1.Paint += (sender, e) =>
+            {
+                foreach (DataGridViewColumn col in dataGridView1.Columns)
+                {
+                    Rectangle rect = dataGridView1.GetCellDisplayRectangle(col.Index, -1, true);
+                    if (rect.Width > 0)
+                    {
+                        Bitmap colIcon = null;
+                        if (col == colPeakVolts) colIcon = ColumnIconHelper.CreatePeakVoltsIcon();
+                        else if (col == colRMSVolts) colIcon = ColumnIconHelper.CreateRMSVoltsIcon();
+                        else if (col == colSupplyCurrent) colIcon = ColumnIconHelper.CreateCurrentIcon();
+                        else if (col == colSupplyVoltage) colIcon = ColumnIconHelper.CreateVoltageIcon();
+                        else if (col == colPowerIn) colIcon = ColumnIconHelper.CreatePowerInIcon();
+                        else if (col == colPowerOut) colIcon = ColumnIconHelper.CreatePowerOutIcon();
+                        else if (col == colEfficiency) colIcon = ColumnIconHelper.CreateEfficiencyIcon();
+                        else if (col == colLoadResistance) colIcon = ColumnIconHelper.CreateResistanceIcon();
+
+                        if (colIcon != null)
+                        {
+                            e.Graphics.DrawImage(colIcon, rect.Left + 2, rect.Top + (rect.Height - 16) / 2, 16, 16);
+                            colIcon.Dispose();
+                        }
+                    }
+                }
+            };
+        }
+
+        private void AddInitialRows(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int rowIndex = dataGridView1.Rows.Add();
+                dataGridView1.Rows[rowIndex].Cells["colSupplyVoltage"].Value = 50;
+                dataGridView1.Rows[rowIndex].Cells["colLoadResistance"].Value = 50;
+            }
+        }
+
+        private void LoadColumnOrder()
+        {
+            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.ColumnOrder))
+            {
+                return;
+            }
+
+            try
+            {
+                _isLoadingColumns = true;
+
+                var orderPairs = Properties.Settings.Default.ColumnOrder.Split(',');
+                
+                if (orderPairs.Length != dataGridView1.Columns.Count)
+                {
+                    ResetColumnOrderSettings();
+                    return;
+                }
+
+                var orderMap = new Dictionary<string, int>();
+                foreach (var pair in orderPairs)
+                {
+                    var parts = pair.Split(':');
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int displayIndex))
+                    {
+                        orderMap[parts[0]] = displayIndex;
+                    }
+                    else
+                    {
+                        ResetColumnOrderSettings();
+                        return;
+                    }
+                }
+
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    if (orderMap.ContainsKey(column.Name))
+                    {
+                        int newIndex = orderMap[column.Name];
+                        if (newIndex >= 0 && newIndex < dataGridView1.Columns.Count)
+                        {
+                            column.DisplayIndex = newIndex;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load column order: {ex.Message}");
+                ResetColumnOrderSettings();
+            }
+            finally
+            {
+                _isLoadingColumns = false;
+            }
+        }
+
+        private void SaveColumnOrder()
+        {
+            if (_isLoadingColumns)
+            {
+                return;
+            }
+
+            try
+            {
+                var orderPairs = new List<string>();
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    orderPairs.Add($"{column.Name}:{column.DisplayIndex}");
+                }
+                Properties.Settings.Default.ColumnOrder = string.Join(",", orderPairs);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save column order: {ex.Message}");
+            }
+        }
+
+        private void ResetColumnOrderSettings()
+        {
+            try
+            {
+                Properties.Settings.Default.ColumnOrder = string.Empty;
+                Properties.Settings.Default.Save();
+                
+                colPeakVolts.DisplayIndex = 0;
+                colRMSVolts.DisplayIndex = 1;
+                colSupplyCurrent.DisplayIndex = 2;
+                colSupplyVoltage.DisplayIndex = 3;
+                colPowerIn.DisplayIndex = 4;
+                colPowerOut.DisplayIndex = 5;
+                colEfficiency.DisplayIndex = 6;
+                colLoadResistance.DisplayIndex = 7;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to reset column order: {ex.Message}");
+            }
+        }
+
+        private void LoadColumnWidths()
+        {
+            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.ColumnWidths))
+            {
+                return;
+            }
+
+            try
+            {
+                _isLoadingColumns = true;
+                
+                var widths = Properties.Settings.Default.ColumnWidths.Split(',');
+                
+                if (widths.Length != dataGridView1.Columns.Count)
+                {
+                    ResetColumnWidthSettings();
+                    return;
+                }
+
+                var parsedWidths = new List<int>();
+                foreach (var widthStr in widths)
+                {
+                    if (!int.TryParse(widthStr, out int width) || width < 10 || width > 5000)
+                    {
+                        ResetColumnWidthSettings();
+                        return;
+                    }
+                    parsedWidths.Add(width);
+                }
+
+                dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                for (int i = 0; i < parsedWidths.Count; i++)
+                {
+                    dataGridView1.Columns[i].Width = parsedWidths[i];
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load column widths: {ex.Message}");
+                ResetColumnWidthSettings();
+            }
+            finally
+            {
+                _isLoadingColumns = false;
+            }
+        }
+
+        private void SaveColumnWidths()
+        {
+            if (_isLoadingColumns)
+            {
+                return;
+            }
+
+            try
+            {
+                var widths = new List<string>();
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    widths.Add(column.Width.ToString());
+                }
+                Properties.Settings.Default.ColumnWidths = string.Join(",", widths);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save column widths: {ex.Message}");
+            }
+        }
+
+        private void ResetColumnWidthSettings()
+        {
+            try
+            {
+                Properties.Settings.Default.ColumnWidths = string.Empty;
+                Properties.Settings.Default.Save();
+                dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to reset column widths: {ex.Message}");
+            }
+        }
+
+        private void LoadWindowSettings()
+        {
+            try
+            {
+                _isLoadingWindow = true;
+
+                var savedSize = Properties.Settings.Default.WindowSize;
+                var savedLocation = Properties.Settings.Default.WindowLocation;
+                var savedState = Properties.Settings.Default.WindowState;
+
+                if (savedSize.Width > 0 && savedSize.Height > 0)
+                {
+                    this.Size = savedSize;
+                }
+
+                if (savedLocation.X != 0 || savedLocation.Y != 0)
+                {
+                    if (IsLocationVisible(savedLocation, this.Size))
+                    {
+                        this.StartPosition = FormStartPosition.Manual;
+                        this.Location = savedLocation;
+                    }
+                }
+
+                if (savedState != FormWindowState.Minimized)
+                {
+                    this.WindowState = savedState;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load window settings: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadingWindow = false;
+            }
+        }
+
+        private bool IsLocationVisible(Point location, Size size)
+        {
+            Rectangle formRectangle = new Rectangle(location, size);
+            
+            foreach (Screen screen in Screen.AllScreens)
+            {
+                if (screen.WorkingArea.IntersectsWith(formRectangle))
+                {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        private void SaveWindowSettings()
+        {
+            if (_isLoadingWindow)
+            {
+                return;
+            }
+
+            try
+            {
+                if (this.WindowState == FormWindowState.Normal)
+                {
+                    Properties.Settings.Default.WindowSize = this.Size;
+                    Properties.Settings.Default.WindowLocation = this.Location;
+                }
+                
+                Properties.Settings.Default.WindowState = this.WindowState;
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save window settings: {ex.Message}");
+            }
+        }
+
+        private void DataGridView1_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+        }
+
+        private void DataGridView1_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            if (!_isLoadingColumns)
+            {
+                SaveColumnOrder();
+            }
+        }
+
+        private void resetColumnWidthsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnWidthSettings();
+            MessageBox.Show("Column widths have been reset to default.", "Reset Complete", 
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void resetColumnOrderToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnOrderSettings();
+            MessageBox.Show("Column order has been reset to default.", "Reset Complete", 
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        protected override void OnResizeEnd(EventArgs e)
+        {
+            base.OnResizeEnd(e);
+            SaveWindowSettings();
+        }
+
+        protected override void OnLocationChanged(EventArgs e)
+        {
+            base.OnLocationChanged(e);
+            if (!_isLoadingWindow && this.WindowState == FormWindowState.Normal)
+            {
+                SaveWindowSettings();
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+            SaveColumnOrder();
+            SaveWindowSettings();
+        }
+    }
+}

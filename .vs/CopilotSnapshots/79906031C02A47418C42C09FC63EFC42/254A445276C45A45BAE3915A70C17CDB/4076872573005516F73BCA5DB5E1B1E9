@@ -1,0 +1,489 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.IO;
+using System.Xml.Serialization;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        private bool _isLoadingColumns = false;
+        private bool _isLoadingWindow = false;
+        private bool _isCalculating = false;
+        private bool _isDirty = false;
+        private string _currentFilePath = null;
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] extern static bool DestroyIcon(IntPtr handle);
+
+  public
+    AmpMeasureMain()
+    {
+        InitializeComponent();
+        SetAppIcon();
+        SetDefaultFormSize();
+        InitializeGrid();
+        SetupColumnIcons();
+        SetupMenuIcons();
+        LoadColumnOrder();
+        LoadColumnWidths();
+        LoadWindowSettings();
+        UpdateMRUMenu();
+        UpdateTitle();
+        
+        // Reset dirty flag after initialization so we don't prompt to save on fresh start
+        _isDirty = false;
+    }
+
+        private void UpdateTitle()
+        {
+            string fileName = string.IsNullOrEmpty(_currentFilePath) ? "Untitled" : Path.GetFileName(_currentFilePath);
+            this.Text = $"Amp Measure - {fileName}" + (_isDirty ? "*" : "");
+        }
+
+  private
+    void SetAppIcon()
+    {
+        try
+        {
+            using(Bitmap bmp = ColumnIconHelper.CreateAppIconImage())
+            {
+                IntPtr hIcon = bmp.GetHicon();
+                using(Icon icon = Icon.FromHandle(hIcon))
+                {
+                    this.Icon = (Icon)icon.Clone();
+                }
+                DestroyIcon(hIcon);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to set app icon: {ex.Message}");
+        }
+    }
+
+  private
+    void SetupMenuIcons()
+    {
+        openToolStripMenuItem.Image = ColumnIconHelper.CreateOpenIcon();
+        saveToolStripMenuItem.Image = ColumnIconHelper.CreateSaveIcon();
+        saveAsToolStripMenuItem.Image = ColumnIconHelper.CreateSaveAsIcon();
+        autoSaveToolStripMenuItem.Image = ColumnIconHelper.CreateAutoSaveIcon();
+        recentFilesToolStripMenuItem.Image = ColumnIconHelper.CreateRecentFilesIcon();
+        
+        viewToolStripMenuItem.Image = ColumnIconHelper.CreateViewIcon();
+        resetColumnWidthsToolStripMenuItem.Image = ColumnIconHelper.CreateResetWidthsIcon();
+        resetColumnOrderToolStripMenuItem.Image = ColumnIconHelper.CreateResetOrderIcon();
+        clearGridToolStripMenuItem.Image = ColumnIconHelper.CreateClearGridIcon();
+    }
+
+        private void SetBusy(bool busy, string message = "")
+        {
+            if (busy)
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                menuStrip1.Enabled = false;
+                dataGridView1.Enabled = false;
+                toolStripStatusLabel1.Text = message;
+            }
+            else
+            {
+                Cursor.Current = Cursors.Default;
+                menuStrip1.Enabled = true;
+                dataGridView1.Enabled = true;
+                toolStripStatusLabel1.Text = "Ready";
+            }
+            Application.DoEvents(); // Force UI update
+        }
+
+        private async Task<bool> SaveWorksheetAsync(string filename, bool silent = false)
+        {
+            try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                // Capture data on UI thread
+                var data = GetWorksheetData();
+
+                // Run I/O on background thread
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextWriter writer = new StreamWriter(filename))
+                    {
+                        serializer.Serialize(writer, data);
+                    }
+                });
+
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                if (!silent)
+                {
+                    MessageBox.Show("Worksheet saved successfully.", "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+            }
+        }
+
+        private async Task LoadWorksheetAsync(string filename)
+        {
+            try
+            {
+                SetBusy(true, "Loading...");
+
+                if (!File.Exists(filename))
+                {
+                    // Remove from MRU if not found
+                    var files = new List<string>();
+                    if (!string.IsNullOrEmpty(Properties.Settings.Default.MRUList))
+                    {
+                        files.AddRange(Properties.Settings.Default.MRUList.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries));
+                        if (files.RemoveAll(f => f.Equals(filename, StringComparison.OrdinalIgnoreCase)) > 0)
+                        {
+                            Properties.Settings.Default.MRUList = string.Join("|", files);
+                            Properties.Settings.Default.Save();
+                            UpdateMRUMenu();
+                        }
+                    }
+                    MessageBox.Show($"File not found: {filename}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                WorksheetData data = null;
+                
+                // Run I/O on background thread
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextReader reader = new StreamReader(filename))
+                    {
+                        data = (WorksheetData)serializer.Deserialize(reader);
+                    }
+                });
+
+                // Apply data on UI thread
+                _isLoadingColumns = true;
+                dataGridView1.Rows.Clear();
+
+                // Restore columns
+                foreach (var colData in data.Columns)
+                {
+                    if (dataGridView1.Columns.Contains(colData.Name))
+                    {
+                        var col = dataGridView1.Columns[colData.Name];
+                        col.Width = colData.Width;
+                        // Ensure DisplayIndex is valid
+                        if (colData.DisplayIndex >= 0 && colData.DisplayIndex < dataGridView1.Columns.Count)
+                        {
+                            col.DisplayIndex = colData.DisplayIndex;
+                        }
+                    }
+                }
+
+                // Restore rows
+                foreach (var rowData in data.Rows)
+                {
+                    int rowIndex = dataGridView1.Rows.Add();
+                    for (int i = 0; i < rowData.Count && i < dataGridView1.Columns.Count; i++)
+                    {
+                        var col = dataGridView1.Columns[i];
+                        dataGridView1.Rows[rowIndex].Cells[col.Name].Value = rowData[i];
+                    }
+                }
+
+                _isLoadingColumns = false;
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                MessageBox.Show($"Failed to load worksheet: {ex.Message}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private async void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!CheckUnsavedChanges()) return;
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                await LoadWorksheetAsync(openFileDialog1.FileName);
+            }
+        }
+
+        private async void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsync();
+        }
+
+        private async void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsAsync();
+        }
+
+        private async Task<bool> PerformSaveAsync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                return await PerformSaveAsAsync();
+            }
+            else
+            {
+                return await SaveWorksheetAsync(_currentFilePath);
+            }
+        }
+
+        private async Task<bool> PerformSaveAsAsync()
+        {
+            if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                return await SaveWorksheetAsync(saveFileDialog1.FileName);
+            }
+            return false;
+        }
+
+        private void UpdateMRUMenu()
+        {
+            recentFilesToolStripMenuItem.DropDownItems.Clear();
+            
+            if (string.IsNullOrEmpty(Properties.Settings.Default.MRUList))
+            {
+                recentFilesToolStripMenuItem.Enabled = false;
+                return;
+            }
+
+            var files = Properties.Settings.Default.MRUList.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            if (files.Length == 0)
+            {
+                recentFilesToolStripMenuItem.Enabled = false;
+                return;
+            }
+
+            recentFilesToolStripMenuItem.Enabled = true;
+            for (int i = 0; i < files.Length; i++)
+            {
+                string file = files[i];
+                var item = new ToolStripMenuItem($"{i + 1}. {Path.GetFileName(file)}");
+                item.Tag = file;
+                item.Click += async (s, e) => {
+                    if (CheckUnsavedChanges()) await LoadWorksheetAsync((string)((ToolStripMenuItem)s).Tag);
+                };
+                recentFilesToolStripMenuItem.DropDownItems.Add(item);
+            }
+        }
+
+        // Remove synchronous methods to avoid confusion
+        // private bool SaveWorksheet(string filename, bool silent = false) ...
+        // private void LoadWorksheet(string filename) ...
+        // private bool PerformSave() ...
+        // private bool PerformSaveAs() ...
+        private bool CheckUnsavedChanges()
+        {
+            if (!_isDirty) return true;
+
+            var result = MessageBox.Show("Do you want to save changes to the current worksheet?", "Unsaved Changes", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                // We need to block here because this is called from synchronous contexts like OnFormClosing
+                // But PerformSaveAsync is async.
+                // For OnFormClosing, we can't easily await.
+                // We might need a synchronous version of Save for OnFormClosing.
+                // Or we can use .GetAwaiter().GetResult() but that risks deadlocks on UI thread.
+                // However, since we are closing, maybe it's acceptable.
+                // But wait, CheckUnsavedChanges is called from openToolStripMenuItem_Click which IS async now.
+                
+                // Let's make CheckUnsavedChanges async?
+                // But OnFormClosing is not async.
+                
+                // Strategy: Keep synchronous SaveWorksheet for OnFormClosing, use Async for everything else.
+                // Or just use synchronous save for everything when prompted by CheckUnsavedChanges?
+                // The user said "during any long-running actions... UI is disabled".
+                // If we save on close, the app is closing, so UI disabled is implicit.
+                
+                // Let's keep a synchronous SaveWorksheet for OnFormClosing and CheckUnsavedChanges (when called from closing).
+                // But CheckUnsavedChanges is also called from Open.
+                
+                // Let's split the logic.
+                // For Open/New, we can use async check.
+                // For Closing, we must use sync check.
+                
+                return PerformSaveSync();
+            }
+            else if (result == DialogResult.No)
+            {
+                return true;
+            }
+            else // Cancel
+            {
+                return false;
+            }
+        }
+
+        private bool PerformSaveSync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    return SaveWorksheetSync(saveFileDialog1.FileName);
+                }
+                return false;
+            }
+            else
+            {
+                return SaveWorksheetSync(_currentFilePath);
+            }
+        }
+
+        private bool SaveWorksheetSync(string filename, bool silent = false)
+        {
+             try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                var data = GetWorksheetData();
+
+                XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                using (TextWriter writer = new StreamWriter(filename))
+                {
+                    serializer.Serialize(writer, data);
+                }
+
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                if (!silent)
+                {
+                    MessageBox.Show("Worksheet saved successfully.", "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (autoSaveToolStripMenuItem.Checked && _isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                SaveWorksheetSync(_currentFilePath, true);
+            }
+            else if (!CheckUnsavedChanges())
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            base.OnFormClosing(e);
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+            SaveColumnOrder();
+            SaveWindowSettings();
+        }
+
+        private void DataGridView1_RowsAdded(object sender, DataGridViewRowsAddedEventArgs e)
+        {
+            if (!_isLoadingColumns) 
+            {
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void DataGridView1_RowsRemoved(object sender, DataGridViewRowsRemovedEventArgs e)
+        {
+            if (!_isLoadingColumns) 
+            {
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void autoSaveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            autoSaveTimer.Enabled = autoSaveToolStripMenuItem.Checked;
+        }
+
+        private async void autoSaveTimer_Tick(object sender, EventArgs e)
+        {
+            if (_isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                await AutoSaveWorksheet(_currentFilePath);
+            }
+        }
+
+    }
+
+    [Serializable]
+    public class WorksheetData
+    {
+        public List<WorksheetColumn> Columns { get; set; }
+        public List<List<string>> Rows { get; set; }
+
+        public WorksheetData()
+        {
+            Columns = new List<WorksheetColumn>();
+            Rows = new List<List<string>>();
+        }
+    }
+
+    [Serializable]
+    public class WorksheetColumn
+    {
+        public string Name { get; set; }
+        public string HeaderText { get; set; }
+        public int Width { get; set; }
+        public int DisplayIndex { get; set; }
+    }
+}

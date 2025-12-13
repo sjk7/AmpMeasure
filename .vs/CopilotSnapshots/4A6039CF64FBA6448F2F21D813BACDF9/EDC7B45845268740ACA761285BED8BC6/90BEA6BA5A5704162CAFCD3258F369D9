@@ -1,0 +1,141 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+namespace AmpMeasure
+{
+    public class PerformanceProfiler
+    {
+        private static readonly string LogFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "AmpMeasure_Performance.log");
+
+        private Dictionary<string, Stopwatch> _activeTimers = new Dictionary<string, Stopwatch>();
+        private Dictionary<string, List<long>> _measurements = new Dictionary<string, List<long>>();
+        private bool _isEnabled;
+
+        public PerformanceProfiler(bool enabled = true)
+        {
+            _isEnabled = enabled;
+        }
+
+        public void StartTimer(string operationName)
+        {
+            if (!_isEnabled) return;
+
+            if (!_activeTimers.ContainsKey(operationName))
+            {
+                _activeTimers[operationName] = new Stopwatch();
+            }
+
+            _activeTimers[operationName].Restart();
+        }
+
+        public long StopTimer(string operationName)
+        {
+            if (!_isEnabled) return 0;
+
+            if (_activeTimers.TryGetValue(operationName, out var timer))
+            {
+                timer.Stop();
+                long elapsed = timer.ElapsedMilliseconds;
+
+                if (!_measurements.ContainsKey(operationName))
+                {
+                    _measurements[operationName] = new List<long>();
+                }
+                _measurements[operationName].Add(elapsed);
+
+                return elapsed;
+            }
+
+            return 0;
+        }
+
+        public void LogToFile(string sessionDescription = "")
+        {
+            if (!_isEnabled || _measurements.Count == 0) return;
+
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("═══════════════════════════════════════════════════════════");
+                sb.AppendLine($"Performance Log - {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                if (!string.IsNullOrEmpty(sessionDescription))
+                {
+                    sb.AppendLine($"Session: {sessionDescription}");
+                }
+                sb.AppendLine("═══════════════════════════════════════════════════════════");
+                sb.AppendLine();
+
+                foreach (var kvp in _measurements)
+                {
+                    string operation = kvp.Key;
+                    List<long> times = kvp.Value;
+
+                    if (times.Count == 1)
+                    {
+                        sb.AppendLine($"{operation,-40} {times[0],6} ms");
+                    }
+                    else
+                    {
+                        long min = long.MaxValue;
+                        long max = long.MinValue;
+                        long total = 0;
+
+                        foreach (long time in times)
+                        {
+                            if (time < min) min = time;
+                            if (time > max) max = time;
+                            total += time;
+                        }
+
+                        double avg = total / (double)times.Count;
+
+                        sb.AppendLine($"{operation,-40} Avg: {avg,6:F1} ms  (Min: {min}, Max: {max}, Count: {times.Count})");
+                    }
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("═══════════════════════════════════════════════════════════");
+                sb.AppendLine();
+
+                File.AppendAllText(LogFilePath, sb.ToString());
+
+                _measurements.Clear();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to write performance log: {ex.Message}");
+            }
+        }
+
+        public void Clear()
+        {
+            _measurements.Clear();
+            _activeTimers.Clear();
+        }
+
+        public static string GetLogFilePath()
+        {
+            return LogFilePath;
+        }
+
+        public static void ClearLogFile()
+        {
+            try
+            {
+                if (File.Exists(LogFilePath))
+                {
+                    File.Delete(LogFilePath);
+                }
+            }
+            catch
+            {
+                // Ignore errors when clearing log
+            }
+        }
+    }
+}

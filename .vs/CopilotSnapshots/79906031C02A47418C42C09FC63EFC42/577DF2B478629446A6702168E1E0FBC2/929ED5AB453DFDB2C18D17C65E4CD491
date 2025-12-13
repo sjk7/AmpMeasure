@@ -1,0 +1,94 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        public AmpMeasureMain()
+        {
+            InitializeComponent();
+            InitializeGrid();
+            LoadColumnWidths();
+        }
+
+        private void InitializeGrid()
+        {
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView1.RowTemplate.Height = 25;
+            dataGridView1.ColumnWidthChanged += DataGridView1_ColumnWidthChanged;
+            
+            AddInitialRows(5);
+        }
+
+        private void AddInitialRows(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int rowIndex = dataGridView1.Rows.Add();
+                dataGridView1.Rows[rowIndex].Cells["colSupplyVoltage"].Value = 50;
+                dataGridView1.Rows[rowIndex].Cells["colLoadResistance"].Value = 50;
+            }
+        }
+
+        private void LoadColumnWidths()
+        {
+            if (!string.IsNullOrEmpty(Properties.Settings.Default.ColumnWidths))
+            {
+                try
+                {
+                    var widths = Properties.Settings.Default.ColumnWidths.Split(',');
+                    if (widths.Length == dataGridView1.Columns.Count)
+                    {
+                        dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                        for (int i = 0; i < widths.Length; i++)
+                        {
+                            if (int.TryParse(widths[i], out int width))
+                            {
+                                dataGridView1.Columns[i].Width = width;
+                            }
+                        }
+                    }
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        private void SaveColumnWidths()
+        {
+            var widths = new List<string>();
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                widths.Add(column.Width.ToString());
+            }
+            Properties.Settings.Default.ColumnWidths = string.Join(",", widths);
+            Properties.Settings.Default.Save();
+        }
+
+        private void DataGridView1_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None)
+            {
+                SaveColumnWidths();
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            base.OnFormClosing(e);
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None)
+            {
+                SaveColumnWidths();
+            }
+        }
+    }
+}

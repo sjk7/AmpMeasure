@@ -1,0 +1,9 @@
+E:\code\AmpMeasure\AmpMeasure\bin\Debug\AmpMeasure.exe.config
+E:\code\AmpMeasure\AmpMeasure\bin\Debug\AmpMeasure.exe
+E:\code\AmpMeasure\AmpMeasure\bin\Debug\AmpMeasure.pdb
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.csproj.AssemblyReference.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.csproj.GenerateResource.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.csproj.CoreCompileInputs.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.exe
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.pdb
+E:\code\AmpMeasure\AmpMeasure\obj\Debug\AmpMeasure.AmpMeasureMain.resources

@@ -1,0 +1,39 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        public AmpMeasureMain()
+        {
+            InitializeComponent();
+            InitializeGrid();
+        }
+
+        private void InitializeGrid()
+        {
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView1.RowTemplate.Height = 25;
+            
+            AddInitialRows(5);
+        }
+
+        private void AddInitialRows(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int rowIndex = dataGridView1.Rows.Add();
+                dataGridView1.Rows[rowIndex].Cells["colSupplyVoltage"].Value = 50;
+                dataGridView1.Rows[rowIndex].Cells["colLoadResistance"].Value = 50;
+            }
+        }
+    }
+}

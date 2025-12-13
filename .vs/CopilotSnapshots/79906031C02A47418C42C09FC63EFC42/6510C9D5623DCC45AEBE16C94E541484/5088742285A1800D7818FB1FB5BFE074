@@ -1,0 +1,196 @@
+﻿using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+
+namespace AmpMeasure
+{
+    public static class ColumnIconHelper
+    {
+        public static Bitmap CreatePeakVoltsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (Pen pen = new Pen(Color.Orange, 2))
+                {
+                    // Lightning bolt
+                    Point[] points = new Point[]
+                    {
+                        new Point(10, 2),
+                        new Point(6, 8),
+                        new Point(9, 8),
+                        new Point(5, 14),
+                        new Point(9, 7),
+                        new Point(6, 7),
+                        new Point(10, 2)
+                    };
+                    g.FillPolygon(new SolidBrush(Color.Orange), points);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateRMSVoltsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Sine wave
+                using (Pen pen = new Pen(Color.Blue, 2))
+                {
+                    for (int x = 0; x < 15; x++)
+                    {
+                        float y1 = 8 + (float)(4 * Math.Sin(x * Math.PI / 4));
+                        float y2 = 8 + (float)(4 * Math.Sin((x + 1) * Math.PI / 4));
+                        g.DrawLine(pen, x, y1, x + 1, y2);
+                    }
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateCurrentIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Circle with I in center (current symbol)
+                using (Pen pen = new Pen(Color.Red, 2))
+                {
+                    g.DrawEllipse(pen, 2, 2, 12, 12);
+                }
+                using (Font font = new Font("Arial", 9, FontStyle.Bold))
+                using (SolidBrush brush = new SolidBrush(Color.Red))
+                {
+                    StringFormat sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Center;
+                    sf.LineAlignment = StringAlignment.Center;
+                    g.DrawString("I", font, brush, new RectangleF(0, 0, 16, 16), sf);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateVoltageIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Circle with V in center (voltage symbol)
+                using (Pen pen = new Pen(Color.Green, 2))
+                {
+                    g.DrawEllipse(pen, 2, 2, 12, 12);
+                }
+                using (Font font = new Font("Arial", 8, FontStyle.Bold))
+                using (SolidBrush brush = new SolidBrush(Color.Green))
+                {
+                    StringFormat sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Center;
+                    sf.LineAlignment = StringAlignment.Center;
+                    g.DrawString("V", font, brush, new RectangleF(0, 0, 16, 16), sf);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreatePowerInIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Arrow pointing down/in
+                using (SolidBrush brush = new SolidBrush(Color.Purple))
+                {
+                    Point[] arrow = new Point[]
+                    {
+                        new Point(8, 14),
+                        new Point(4, 8),
+                        new Point(7, 8),
+                        new Point(7, 2),
+                        new Point(9, 2),
+                        new Point(9, 8),
+                        new Point(12, 8)
+                    };
+                    g.FillPolygon(brush, arrow);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreatePowerOutIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Arrow pointing up/out
+                using (SolidBrush brush = new SolidBrush(Color.DarkOrange))
+                {
+                    Point[] arrow = new Point[]
+                    {
+                        new Point(8, 2),
+                        new Point(4, 8),
+                        new Point(7, 8),
+                        new Point(7, 14),
+                        new Point(9, 14),
+                        new Point(9, 8),
+                        new Point(12, 8)
+                    };
+                    g.FillPolygon(brush, arrow);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateEfficiencyIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Percentage symbol
+                using (SolidBrush brush = new SolidBrush(Color.DarkGreen))
+                {
+                    g.FillEllipse(brush, 2, 2, 4, 4);
+                    g.FillEllipse(brush, 10, 10, 4, 4);
+                }
+                using (Pen pen = new Pen(Color.DarkGreen, 2))
+                {
+                    g.DrawLine(pen, 3, 13, 13, 3);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateResistanceIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Resistor symbol (zigzag)
+                using (Pen pen = new Pen(Color.Brown, 2))
+                {
+                    Point[] points = new Point[]
+                    {
+                        new Point(1, 8),
+                        new Point(3, 4),
+                        new Point(5, 12),
+                        new Point(7, 4),
+                        new Point(9, 12),
+                        new Point(11, 4),
+                        new Point(13, 12),
+                        new Point(15, 8)
+                    };
+                    g.DrawLines(pen, points);
+                }
+            }
+            return bmp;
+        }
+    }
+}

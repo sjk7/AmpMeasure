@@ -1,0 +1,207 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Text;
+
+namespace AmpMeasure
+{
+    public class PerformanceProfiler
+    {
+        private static readonly string LogFilePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "AmpMeasure_Performance.log");
+
+        private Dictionary<string, Stopwatch> _activeTimers = new Dictionary<string, Stopwatch>();
+        private Dictionary<string, List<long>> _measurements = new Dictionary<string, List<long>>();
+        private Dictionary<string, List<long>> _allTimeMeasurements = new Dictionary<string, List<long>>();
+        private bool _isEnabled;
+        private int _sessionCounter = 0;
+
+        public PerformanceProfiler(bool enabled = true)
+        {
+            _isEnabled = enabled;
+        }
+
+        public void StartTimer(string operationName)
+        {
+            if (!_isEnabled) return;
+
+            if (!_activeTimers.ContainsKey(operationName))
+            {
+                _activeTimers[operationName] = new Stopwatch();
+            }
+
+            _activeTimers[operationName].Restart();
+        }
+
+        public long StopTimer(string operationName)
+        {
+            if (!_isEnabled) return 0;
+
+            if (_activeTimers.TryGetValue(operationName, out var timer))
+            {
+                timer.Stop();
+                long elapsed = timer.ElapsedMilliseconds;
+
+                if (!_measurements.ContainsKey(operationName))
+                {
+                    _measurements[operationName] = new List<long>();
+                }
+                _measurements[operationName].Add(elapsed);
+
+                if (!_allTimeMeasurements.ContainsKey(operationName))
+                {
+                    _allTimeMeasurements[operationName] = new List<long>();
+                }
+                _allTimeMeasurements[operationName].Add(elapsed);
+
+                return elapsed;
+            }
+
+            return 0;
+        }
+
+        public void LogToFile(string sessionDescription = "")
+        {
+            if (!_isEnabled || _measurements.Count == 0) return;
+
+            try
+            {
+                _sessionCounter++;
+                
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine("===========================================================");
+                sb.AppendLine($"Session #{_sessionCounter} - {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                if (!string.IsNullOrEmpty(sessionDescription))
+                {
+                    sb.AppendLine($"Action: {sessionDescription}");
+                }
+                sb.AppendLine("===========================================================");
+                sb.AppendLine();
+
+                long totalTime = 0;
+                
+                foreach (var kvp in _measurements)
+                {
+                    string operation = kvp.Key;
+                    List<long> times = kvp.Value;
+
+                    long sum = 0;
+                    foreach (long time in times)
+                    {
+                        sum += time;
+                        totalTime += time;
+                    }
+
+                    if (times.Count == 1)
+                    {
+                        sb.AppendLine($"  {operation,-45} {times[0],6} ms");
+                    }
+                    else
+                    {
+                        long min = long.MaxValue;
+                        long max = long.MinValue;
+
+                        foreach (long time in times)
+                        {
+                            if (time < min) min = time;
+                            if (time > max) max = time;
+                        }
+
+                        double avg = sum / (double)times.Count;
+                        sb.AppendLine($"  {operation,-45} {avg,6:F1} ms (x{times.Count})");
+                    }
+                }
+
+                sb.AppendLine();
+                sb.AppendLine($"  TOTAL SESSION TIME:                           {totalTime,6} ms ({totalTime / 1000.0:F2}s)");
+                sb.AppendLine();
+
+                File.AppendAllText(LogFilePath, sb.ToString(), Encoding.UTF8);
+
+                _measurements.Clear();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to write performance log: {ex.Message}");
+            }
+        }
+
+        public void WriteAllTimeStats()
+        {
+            if (!_isEnabled || _allTimeMeasurements.Count == 0) return;
+
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine();
+                sb.AppendLine("===========================================================");
+                sb.AppendLine($"ALL-TIME STATISTICS (Since App Started)");
+                sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                sb.AppendLine("===========================================================");
+                sb.AppendLine();
+
+                foreach (var kvp in _allTimeMeasurements)
+                {
+                    string operation = kvp.Key;
+                    List<long> times = kvp.Value;
+
+                    if (times.Count == 0) continue;
+
+                    long min = long.MaxValue;
+                    long max = long.MinValue;
+                    long total = 0;
+
+                    foreach (long time in times)
+                    {
+                        if (time < min) min = time;
+                        if (time > max) max = time;
+                        total += time;
+                    }
+
+                    double avg = total / (double)times.Count;
+
+                    sb.AppendLine($"  {operation,-45} Avg: {avg,6:F1} ms  (Min: {min,4}, Max: {max,4}, Count: {times.Count,3})");
+                }
+
+                sb.AppendLine();
+                sb.AppendLine("===========================================================");
+                sb.AppendLine();
+                sb.AppendLine();
+
+                File.AppendAllText(LogFilePath, sb.ToString(), Encoding.UTF8);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to write all-time stats: {ex.Message}");
+            }
+        }
+
+        public void Clear()
+        {
+            _measurements.Clear();
+            _activeTimers.Clear();
+        }
+
+        public static string GetLogFilePath()
+        {
+            return LogFilePath;
+        }
+
+        public static void ClearLogFile()
+        {
+            try
+            {
+                if (File.Exists(LogFilePath))
+                {
+                    File.Delete(LogFilePath);
+                }
+            }
+            catch
+            {
+                // Ignore errors when clearing log
+            }
+        }
+    }
+}

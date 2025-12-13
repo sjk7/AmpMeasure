@@ -1,0 +1,317 @@
+﻿using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Xml.Serialization;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain
+    {
+        private readonly object _saveLock = new object();
+
+        private async Task<bool> SaveWorksheetAsync(string filename, bool silent = false)
+        {
+            if (!Monitor.TryEnter(_saveLock, 0))
+            {
+                if (!silent)
+                {
+                    MessageBox.Show("A save operation is already in progress. Please wait.", "Save In Progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return false;
+            }
+
+            try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                _profiler.StartTimer("Save: Collect data from grid");
+                var data = GetWorksheetData();
+                _profiler.StopTimer("Save: Collect data from grid");
+
+                _profiler.StartTimer("Save: Write XML to disk");
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (FileStream fs = new FileStream(filename, FileMode.Create, FileAccess.Write, FileShare.None, 65536))
+                    using (BufferedStream bs = new BufferedStream(fs, 65536))
+                    using (StreamWriter writer = new StreamWriter(bs))
+                    {
+                        serializer.Serialize(writer, data);
+                    }
+                });
+                _profiler.StopTimer("Save: Write XML to disk");
+
+                _currentFilePath = filename;
+                
+                Properties.Settings.Default.LastWorksheetPath = filename;
+                Properties.Settings.Default.Save();
+                
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                _profiler.LogToFile($"Save: {Path.GetFileName(filename)} ({data.Rows.Count:N0} rows)");
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+                Monitor.Exit(_saveLock);
+            }
+        }
+
+        private bool SaveWorksheetSync(string filename, bool silent = false)
+        {
+            if (!Monitor.TryEnter(_saveLock, 0))
+            {
+                if (!silent)
+                {
+                    MessageBox.Show("A save operation is already in progress. Please wait.", "Save In Progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return false;
+            }
+
+            try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                var data = GetWorksheetData();
+
+                XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                using (TextWriter writer = new StreamWriter(filename))
+                {
+                    serializer.Serialize(writer, data);
+                }
+
+                _currentFilePath = filename;
+                
+                Properties.Settings.Default.LastWorksheetPath = filename;
+                Properties.Settings.Default.Save();
+                
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+                Monitor.Exit(_saveLock);
+            }
+        }
+
+        private async Task AutoSaveWorksheet(string filename)
+        {
+            if (!Monitor.TryEnter(_saveLock, 0))
+            {
+                System.Diagnostics.Debug.WriteLine("Auto-save skipped: Another save operation is in progress");
+                return;
+            }
+
+            try
+            {
+                var data = GetWorksheetData();
+
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextWriter writer = new StreamWriter(filename))
+                    {
+                        serializer.Serialize(writer, data);
+                    }
+                });
+
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Auto-save failed: {ex.Message}");
+            }
+            finally
+            {
+                Monitor.Exit(_saveLock);
+            }
+        }
+
+        private async Task LoadWorksheetAsync(string filename)
+        {
+            try
+            {
+                SetBusy(true, "Loading...");
+
+                if (!File.Exists(filename))
+                {
+                    RemoveFromMRU(filename);
+                    MessageBox.Show($"File not found: {filename}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                WorksheetData data = null;
+                
+                _profiler.StartTimer("Load: Read and parse XML");
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 65536))
+                    using (BufferedStream bs = new BufferedStream(fs, 65536))
+                    using (StreamReader reader = new StreamReader(bs))
+                    {
+                        data = (WorksheetData)serializer.Deserialize(reader);
+                    }
+                });
+                _profiler.StopTimer("Load: Read and parse XML");
+
+                _profiler.StartTimer("Load: Populate virtual store");
+                ApplyWorksheetData(data);
+                _profiler.StopTimer("Load: Populate virtual store");
+                
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                _profiler.LogToFile($"Load: {Path.GetFileName(filename)} ({data.Rows.Count:N0} rows)");
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                MessageBox.Show($"Failed to load worksheet: {ex.Message}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private async Task<long> LoadWorksheetWithTimingAsync(string filename)
+        {
+            System.Diagnostics.Stopwatch timer = System.Diagnostics.Stopwatch.StartNew();
+            
+            try
+            {
+                if (!File.Exists(filename))
+                {
+                    RemoveFromMRU(filename);
+                    MessageBox.Show($"File not found: {filename}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return 0;
+                }
+
+                WorksheetData data = null;
+                
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read, FileShare.Read, 65536))
+                    using (BufferedStream bs = new BufferedStream(fs, 65536))
+                    using (StreamReader reader = new StreamReader(bs))
+                    {
+                        data = (WorksheetData)serializer.Deserialize(reader);
+                    }
+                });
+
+                long deserializeTime = timer.ElapsedMilliseconds;
+                
+                SetBusy(true, "Applying data to grid...");
+                ApplyWorksheetData(data);
+                
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                return deserializeTime;
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                MessageBox.Show($"Failed to load worksheet: {ex.Message}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return 0;
+            }
+        }
+
+        private void ApplyWorksheetData(WorksheetData data)
+        {
+            _isLoadingColumns = true;
+            
+            ClearVirtualData();
+
+            foreach (var colData in data.Columns)
+            {
+                if (dataGridView1.Columns.Contains(colData.Name))
+                {
+                    var col = dataGridView1.Columns[colData.Name];
+                    col.Width = colData.Width;
+                    if (colData.DisplayIndex >= 0 && colData.DisplayIndex < dataGridView1.Columns.Count)
+                    {
+                        col.DisplayIndex = colData.DisplayIndex;
+                    }
+                }
+            }
+
+            int totalRows = data.Rows.Count;
+            int columnCount = dataGridView1.Columns.Count;
+            
+            for (int i = 0; i < totalRows; i++)
+            {
+                var rowData = data.Rows[i];
+                
+                string[] cellValues = new string[columnCount];
+                
+                for (int j = 0; j < columnCount; j++)
+                {
+                    if (j < rowData.Count)
+                    {
+                        cellValues[j] = rowData[j] ?? "";
+                    }
+                    else
+                    {
+                        cellValues[j] = "";
+                    }
+                }
+                
+                _virtualDataStore.Add(cellValues);
+                
+                if (totalRows > 1000 && i % 5000 == 0 && i > 0)
+                {
+                    SetBusy(true, $"Loading rows: {i:N0} / {totalRows:N0}...");
+                }
+            }
+
+            SetVirtualRowCount(_virtualDataStore.Count);
+            dataGridView1.Refresh();
+            
+            _isLoadingColumns = false;
+        }
+    }
+}

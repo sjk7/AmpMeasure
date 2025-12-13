@@ -1,0 +1,322 @@
+﻿namespace AmpMeasure
+{
+    partial class AmpMeasureMain
+    {
+        /// <summary>
+        /// Required designer variable.
+        /// </summary>
+        private System.ComponentModel.IContainer components = null;
+
+        /// <summary>
+        /// Clean up any resources being used.
+        /// </summary>
+        /// <param name="disposing">true if managed resources should be disposed; otherwise, false.</param>
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && (components != null))
+            {
+                components.Dispose();
+            }
+            base.Dispose(disposing);
+        }
+
+        #region Windows Form Designer generated code
+
+        /// <summary>
+        /// Required method for Designer support - do not modify
+        /// the contents of this method with the code editor.
+        /// </summary>
+        private void InitializeComponent()
+        {
+            this.dataGridView1 = new System.Windows.Forms.DataGridView();
+            this.colPeakVolts = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colRMSVolts = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSupplyCurrent = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colSupplyVoltage = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colPowerIn = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colPowerOut = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colEfficiency = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colLoadResistance = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.colDateTime = new System.Windows.Forms.DataGridViewTextBoxColumn();
+            this.menuStrip1 = new System.Windows.Forms.MenuStrip();
+            this.fileToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.openToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.saveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.saveAsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.autoSaveToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparator1 = new System.Windows.Forms.ToolStripSeparator();
+            this.recentFilesToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.editToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.clearGridToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.viewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.resetColumnWidthsToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.resetColumnOrderToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.openFileDialog1 = new System.Windows.Forms.OpenFileDialog();
+            this.saveFileDialog1 = new System.Windows.Forms.SaveFileDialog();
+            this.autoSaveTimer = new System.Windows.Forms.Timer(this.components);
+            this.statusStrip1 = new System.Windows.Forms.StatusStrip();
+            this.toolStripStatusLabel1 = new System.Windows.Forms.ToolStripStatusLabel();
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
+            this.menuStrip1.SuspendLayout();
+            this.statusStrip1.SuspendLayout();
+            this.SuspendLayout();
+            // 
+            // dataGridView1
+            // 
+            this.dataGridView1.AllowUserToOrderColumns = true;
+            this.dataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            this.dataGridView1.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
+            this.colPeakVolts,
+            this.colRMSVolts,
+            this.colSupplyCurrent,
+            this.colSupplyVoltage,
+            this.colPowerIn,
+            this.colPowerOut,
+            this.colEfficiency,
+            this.colLoadResistance,
+            this.colDateTime});
+            this.dataGridView1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.dataGridView1.Location = new System.Drawing.Point(0, 24);
+            this.dataGridView1.Name = "dataGridView1";
+            this.dataGridView1.Size = new System.Drawing.Size(800, 426);
+            this.dataGridView1.TabIndex = 0;
+            // 
+            // colPeakVolts
+            // 
+            this.colPeakVolts.HeaderText = "Peak Volts";
+            this.colPeakVolts.Name = "colPeakVolts";
+            // 
+            // colRMSVolts
+            // 
+            this.colRMSVolts.HeaderText = "RMS Volts";
+            this.colRMSVolts.Name = "colRMSVolts";
+            // 
+            // colSupplyCurrent
+            // 
+            this.colSupplyCurrent.HeaderText = "Supply Current";
+            this.colSupplyCurrent.Name = "colSupplyCurrent";
+            // 
+            // colSupplyVoltage
+            // 
+            this.colSupplyVoltage.HeaderText = "Supply Voltage";
+            this.colSupplyVoltage.Name = "colSupplyVoltage";
+            // 
+            // colPowerIn
+            // 
+            this.colPowerIn.HeaderText = "Power In";
+            this.colPowerIn.Name = "colPowerIn";
+            // 
+            // colPowerOut
+            // 
+            this.colPowerOut.HeaderText = "Power Out";
+            this.colPowerOut.Name = "colPowerOut";
+            // 
+            // colEfficiency
+            // 
+            this.colEfficiency.HeaderText = "Efficiency";
+            this.colEfficiency.Name = "colEfficiency";
+            // 
+            // colLoadResistance
+            // 
+            this.colLoadResistance.HeaderText = "Load Resistance";
+            this.colLoadResistance.Name = "colLoadResistance";
+            // 
+            // colDateTime
+            // 
+            this.colDateTime.HeaderText = "Date/Time";
+            this.colDateTime.Name = "colDateTime";
+            this.colDateTime.ReadOnly = true;
+            // 
+            // menuStrip1
+            // 
+            this.menuStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.fileToolStripMenuItem,
+            this.editToolStripMenuItem,
+            this.viewToolStripMenuItem});
+            this.menuStrip1.Location = new System.Drawing.Point(0, 0);
+            this.menuStrip1.Name = "menuStrip1";
+            this.menuStrip1.Size = new System.Drawing.Size(800, 24);
+            this.menuStrip1.TabIndex = 1;
+            this.menuStrip1.Text = "menuStrip1";
+            // 
+            // fileToolStripMenuItem
+            // 
+            this.fileToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.openToolStripMenuItem,
+            this.saveToolStripMenuItem,
+            this.saveAsToolStripMenuItem,
+            this.autoSaveToolStripMenuItem,
+            this.toolStripSeparator1,
+            this.recentFilesToolStripMenuItem});
+            this.fileToolStripMenuItem.Name = "fileToolStripMenuItem";
+            this.fileToolStripMenuItem.Size = new System.Drawing.Size(37, 20);
+            this.fileToolStripMenuItem.Text = "&File";
+            // 
+            // openToolStripMenuItem
+            // 
+            this.openToolStripMenuItem.Name = "openToolStripMenuItem";
+            this.openToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.O)));
+            this.openToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.openToolStripMenuItem.Text = "&Open...";
+            this.openToolStripMenuItem.Click += new System.EventHandler(this.openToolStripMenuItem_Click);
+            // 
+            // saveToolStripMenuItem
+            // 
+            this.saveToolStripMenuItem.Name = "saveToolStripMenuItem";
+            this.saveToolStripMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
+            this.saveToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.saveToolStripMenuItem.Text = "&Save";
+            this.saveToolStripMenuItem.Click += new System.EventHandler(this.saveToolStripMenuItem_Click);
+            // 
+            // saveAsToolStripMenuItem
+            // 
+            this.saveAsToolStripMenuItem.Name = "saveAsToolStripMenuItem";
+            this.saveAsToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.saveAsToolStripMenuItem.Text = "Save &As...";
+            this.saveAsToolStripMenuItem.Click += new System.EventHandler(this.saveAsToolStripMenuItem_Click);
+            // 
+            // autoSaveToolStripMenuItem
+            // 
+            this.autoSaveToolStripMenuItem.Checked = true;
+            this.autoSaveToolStripMenuItem.CheckOnClick = true;
+            this.autoSaveToolStripMenuItem.CheckState = System.Windows.Forms.CheckState.Checked;
+            this.autoSaveToolStripMenuItem.Name = "autoSaveToolStripMenuItem";
+            this.autoSaveToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.autoSaveToolStripMenuItem.Text = "Auto-Save";
+            this.autoSaveToolStripMenuItem.Click += new System.EventHandler(this.autoSaveToolStripMenuItem_Click);
+            // 
+            // toolStripSeparator1
+            // 
+            this.toolStripSeparator1.Name = "toolStripSeparator1";
+            this.toolStripSeparator1.Size = new System.Drawing.Size(177, 6);
+            // 
+            // recentFilesToolStripMenuItem
+            // 
+            this.recentFilesToolStripMenuItem.Name = "recentFilesToolStripMenuItem";
+            this.recentFilesToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.recentFilesToolStripMenuItem.Text = "Recent &Files";
+            // 
+            // editToolStripMenuItem
+            // 
+            this.editToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.clearGridToolStripMenuItem});
+            this.editToolStripMenuItem.Name = "editToolStripMenuItem";
+            this.editToolStripMenuItem.Size = new System.Drawing.Size(39, 20);
+            this.editToolStripMenuItem.Text = "&Edit";
+            // 
+            // clearGridToolStripMenuItem
+            // 
+            this.clearGridToolStripMenuItem.Name = "clearGridToolStripMenuItem";
+            this.clearGridToolStripMenuItem.Size = new System.Drawing.Size(180, 22);
+            this.clearGridToolStripMenuItem.Text = "&Clear Grid";
+            this.clearGridToolStripMenuItem.Click += new System.EventHandler(this.clearGridToolStripMenuItem_Click);
+            // 
+            // viewToolStripMenuItem
+            // 
+            this.viewToolStripMenuItem.DropDownItems.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.resetColumnWidthsToolStripMenuItem,
+            this.resetColumnOrderToolStripMenuItem});
+            this.viewToolStripMenuItem.Name = "viewToolStripMenuItem";
+            this.viewToolStripMenuItem.Size = new System.Drawing.Size(44, 20);
+            this.viewToolStripMenuItem.Text = "&View";
+            // 
+            // resetColumnWidthsToolStripMenuItem
+            // 
+            this.resetColumnWidthsToolStripMenuItem.Name = "resetColumnWidthsToolStripMenuItem";
+            this.resetColumnWidthsToolStripMenuItem.Size = new System.Drawing.Size(190, 22);
+            this.resetColumnWidthsToolStripMenuItem.Text = "&Reset Column Widths";
+            this.resetColumnWidthsToolStripMenuItem.Click += new System.EventHandler(this.resetColumnWidthsToolStripMenuItem_Click);
+            // 
+            // resetColumnOrderToolStripMenuItem
+            // 
+            this.resetColumnOrderToolStripMenuItem.Name = "resetColumnOrderToolStripMenuItem";
+            this.resetColumnOrderToolStripMenuItem.Size = new System.Drawing.Size(190, 22);
+            this.resetColumnOrderToolStripMenuItem.Text = "Reset Column &Order";
+            this.resetColumnOrderToolStripMenuItem.Click += new System.EventHandler(this.resetColumnOrderToolStripMenuItem_Click);
+            // 
+            // openFileDialog1
+            // 
+            this.openFileDialog1.Filter = "Worksheet files (*.xml)|*.xml|All files (*.*)|*.*";
+            this.openFileDialog1.Title = "Open Worksheet";
+            // 
+            // saveFileDialog1
+            // 
+            this.saveFileDialog1.Filter = "Worksheet files (*.xml)|*.xml|All files (*.*)|*.*";
+            this.saveFileDialog1.OverwritePrompt = true;
+            this.saveFileDialog1.Title = "Save Worksheet";
+            // 
+            // autoSaveTimer
+            // 
+            this.autoSaveTimer.Enabled = true;
+            this.autoSaveTimer.Interval = 120000;
+            this.autoSaveTimer.Tick += new System.EventHandler(this.autoSaveTimer_Tick);
+            // 
+            // statusStrip1
+            // 
+            this.statusStrip1.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.toolStripStatusLabel1});
+            this.statusStrip1.Location = new System.Drawing.Point(0, 428);
+            this.statusStrip1.Name = "statusStrip1";
+            this.statusStrip1.Size = new System.Drawing.Size(800, 22);
+            this.statusStrip1.TabIndex = 2;
+            this.statusStrip1.Text = "statusStrip1";
+            // 
+            // toolStripStatusLabel1
+            // 
+            this.toolStripStatusLabel1.Name = "toolStripStatusLabel1";
+            this.toolStripStatusLabel1.Size = new System.Drawing.Size(39, 17);
+            this.toolStripStatusLabel1.Text = "Ready";
+            // 
+            // AmpMeasureMain
+            // 
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
+            this.ClientSize = new System.Drawing.Size(800, 450);
+            this.Controls.Add(this.statusStrip1);
+            this.Controls.Add(this.dataGridView1);
+            this.Controls.Add(this.menuStrip1);
+            this.MainMenuStrip = this.menuStrip1;
+            this.Name = "AmpMeasureMain";
+            this.Text = "Amp Measure";
+            ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).EndInit();
+            this.menuStrip1.ResumeLayout(false);
+            this.menuStrip1.PerformLayout();
+            this.statusStrip1.ResumeLayout(false);
+            this.statusStrip1.PerformLayout();
+            this.ResumeLayout(false);
+            this.PerformLayout();
+        }
+
+        #endregion
+
+        private System.Windows.Forms.DataGridView dataGridView1;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPeakVolts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colRMSVolts;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colSupplyCurrent;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colSupplyVoltage;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPowerIn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colPowerOut;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colEfficiency;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colLoadResistance;
+        private System.Windows.Forms.DataGridViewTextBoxColumn colDateTime;
+        private System.Windows.Forms.MenuStrip menuStrip1;
+        private System.Windows.Forms.ToolStripMenuItem fileToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem openToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem saveToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem saveAsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem autoSaveToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem recentFilesToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem editToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem clearGridToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem viewToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem resetColumnWidthsToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem resetColumnOrderToolStripMenuItem;
+        private System.Windows.Forms.OpenFileDialog openFileDialog1;
+        private System.Windows.Forms.SaveFileDialog saveFileDialog1;
+        private System.Windows.Forms.Timer autoSaveTimer;
+        private System.Windows.Forms.StatusStrip statusStrip1;
+        private System.Windows.Forms.ToolStripStatusLabel toolStripStatusLabel1;
+    }
+}
+

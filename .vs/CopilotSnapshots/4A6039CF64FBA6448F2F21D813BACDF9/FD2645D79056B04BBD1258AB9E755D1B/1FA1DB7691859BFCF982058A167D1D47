@@ -1,0 +1,184 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain
+    {
+        private async void generateTestDataToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            var result = MessageBox.Show(
+                "This will generate 10,000 test rows with random data.\n\n" +
+                "The grid will be cleared and new data will be generated.\n" +
+                "This will test save and load performance.\n\n" +
+                "Continue?",
+                "Generate Test Data",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Question);
+
+            if (result == DialogResult.Yes)
+            {
+                await GenerateTestDataAsync();
+            }
+        }
+
+        private async Task GenerateTestDataAsync()
+        {
+            Stopwatch timer = new Stopwatch();
+            
+            long generateTime = 0;
+            long addRowsTime = 0;
+            long saveTime = 0;
+            long clearTime = 0;
+            long loadDeserializeTime = 0;
+            long loadApplyDataTime = 0;
+            
+            string testFilePath = null;
+            
+            try
+            {
+                // Phase 1: Clear existing data
+                _isLoadingColumns = true;
+                timer.Start();
+                ClearVirtualData();
+                clearTime = timer.ElapsedMilliseconds;
+                timer.Restart();
+
+                // Phase 2: Generate data in memory
+                SetBusy(true, "Generating 10,000 test rows in memory...");
+                Random random = new Random();
+                int totalRows = 10000;
+                string[][] rowData = null;
+                
+                _profiler.StartTimer("Test: Generate random data");
+                await Task.Run(() =>
+                {
+                    rowData = new string[totalRows][];
+                    
+                    for (int i = 0; i < totalRows; i++)
+                    {
+                        double peakVolts = Math.Round(random.NextDouble() * 100 + 10, 2);
+                        double supplyCurrent = Math.Round(random.NextDouble() * 5 + 0.5, 3);
+                        double supplyVoltage = Math.Round(random.NextDouble() * 20 + 40, 1);
+                        double loadResistance = Math.Round(random.NextDouble() * 100 + 20, 1);
+                        double powerOut = Math.Round(random.NextDouble() * 50 + 10, 2);
+
+                        double rmsVolts = Math.Round(peakVolts * 0.70710678, 3);
+                        double powerIn = Math.Round(supplyVoltage * supplyCurrent, 3);
+                        double efficiency = powerIn != 0 ? Math.Round((powerOut / powerIn) * 100, 2) : 0;
+
+                        var row = new string[dataGridView1.Columns.Count];
+                        row[colPeakVolts.Index] = peakVolts.ToString();
+                        row[colSupplyCurrent.Index] = supplyCurrent.ToString();
+                        row[colPowerOut.Index] = powerOut.ToString();
+                        row[colRMSVolts.Index] = rmsVolts.ToString();
+                        row[colSupplyVoltage.Index] = supplyVoltage.ToString();
+                        row[colPowerIn.Index] = powerIn.ToString();
+                        row[colEfficiency.Index] = efficiency.ToString();
+                        row[colLoadResistance.Index] = loadResistance.ToString();
+                        row[colDateTime.Index] = DateTime.Now.AddMinutes(-random.Next(0, 10000)).ToString("g");
+                        
+                        rowData[i] = row;
+                    }
+                });
+                _profiler.StopTimer("Test: Generate random data");
+                
+                generateTime = timer.ElapsedMilliseconds;
+                timer.Restart();
+
+                // Phase 3: Add rows to virtual store
+                SetBusy(true, "Adding 10,000 rows to virtual store...");
+                
+                _profiler.StartTimer("Test: Add to virtual store");
+                for (int i = 0; i < totalRows; i++)
+                {
+                    _virtualDataStore.Add(rowData[i]);
+                    
+                    var tags = new Dictionary<string, string>();
+                    tags["colSupplyVoltage"] = "user-edited";
+                    tags["colLoadResistance"] = "user-edited";
+                    _virtualCellTags[i] = tags;
+                }
+
+                SetVirtualRowCount(_virtualDataStore.Count);
+                _profiler.StopTimer("Test: Add to virtual store");
+                
+                addRowsTime = timer.ElapsedMilliseconds;
+                timer.Restart();
+                
+                _isLoadingColumns = false;
+                _isDirty = true;
+                UpdateTitle();
+
+                // Phase 4: Save to file
+                SetBusy(true, "Saving 10,000 rows to XML file...");
+                
+                testFilePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                    $"AmpMeasure_TestData_10K_{DateTime.Now:yyyyMMdd_HHmmss}.xml");
+
+                await SaveWorksheetAsync(testFilePath, true);
+                saveTime = timer.ElapsedMilliseconds;
+                timer.Restart();
+
+                // Phase 5: Clear grid for reload test
+                long clearTime2;
+                ClearVirtualData();
+                clearTime2 = timer.ElapsedMilliseconds;
+                
+                _currentFilePath = null;
+                timer.Restart();
+
+                // Phase 6: Load from file
+                SetBusy(true, "Reading and deserializing XML file...");
+                
+                loadDeserializeTime = await LoadWorksheetWithTimingAsync(testFilePath);
+                loadApplyDataTime = timer.ElapsedMilliseconds - loadDeserializeTime;
+
+                SetBusy(false);
+
+                long totalTime = clearTime + generateTime + addRowsTime + saveTime + clearTime2 + loadDeserializeTime + loadApplyDataTime;
+                
+                _profiler.LogToFile($"Test Data Generation Complete: {Path.GetFileName(testFilePath)} ({totalRows:N0} rows)");
+
+                MessageBox.Show(
+                    $"Performance Test Complete - 10,000 Rows\n\n" +
+                    $"CLEAR (initial - 5 rows):\n" +
+                    $"  • {clearTime:N0} ms\n\n" +
+                    $"CREATION:\n" +
+                    $"  • Generate data: {generateTime:N0} ms\n" +
+                    $"  • Add to virtual store: {addRowsTime:N0} ms\n" +
+                    $"  Subtotal: {(generateTime + addRowsTime):N0} ms\n\n" +
+                    $"SAVE:\n" +
+                    $"  • Save to XML: {saveTime:N0} ms\n\n" +
+                    $"CLEAR (for reload - 10K rows):\n" +
+                    $"  • {clearTime2:N0} ms\n\n" +
+                    $"LOAD:\n" +
+                    $"  • Deserialize XML: {loadDeserializeTime:N0} ms\n" +
+                    $"  • Apply to virtual store: {loadApplyDataTime:N0} ms\n" +
+                    $"  Subtotal: {(loadDeserializeTime + loadApplyDataTime):N0} ms\n\n" +
+                    $"TOTAL: {totalTime:N0} ms ({(totalTime / 1000.0):F2}s)\n\n" +
+                    $"File: {Path.GetFileName(testFilePath)}\n\n" +
+                    $"Check View > View Performance Log for detailed timing!",
+                    "Performance Test Results",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                SetBusy(false);
+                MessageBox.Show(
+                    $"Error during performance test:\n{ex.Message}\n\nStack:\n{ex.StackTrace}",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
+    }
+}

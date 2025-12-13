@@ -1,0 +1,1373 @@
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using System.Runtime.InteropServices;
+using System.IO;
+using System.Xml.Serialization;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        private bool _isLoadingColumns = false;
+        private bool _isLoadingWindow = false;
+        private bool _isCalculating = false;
+        private bool _isDirty = false;
+        private string _currentFilePath = null;
+        private readonly object _saveLock = new object();
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)] extern static bool DestroyIcon(IntPtr handle);
+
+  public
+    AmpMeasureMain()
+    {
+        InitializeComponent();
+        SetAppIcon();
+        SetDefaultFormSize();
+        InitializeGrid();
+        SetupColumnIcons();
+        SetupMenuIcons();
+        LoadColumnOrder();
+        LoadColumnWidths();
+        LoadWindowSettings();
+        UpdateMRUMenu();
+        UpdateTitle();
+        
+        // Load and apply dark mode setting
+        darkModeToolStripMenuItem.Checked = Properties.Settings.Default.DarkMode;
+        ApplyTheme(Properties.Settings.Default.DarkMode);
+        
+        // Reset dirty flag after initialization so we don't prompt to save on fresh start
+        _isDirty = false;
+        
+        // Load last worksheet if it exists
+        string lastWorksheet = Properties.Settings.Default.LastWorksheetPath;
+        if (!string.IsNullOrEmpty(lastWorksheet) && File.Exists(lastWorksheet))
+        {
+            this.Shown += async (s, e) => { await LoadWorksheetAsync(lastWorksheet); };
+        }
+    }
+
+        private void UpdateTitle()
+        {
+            string fileName = string.IsNullOrEmpty(_currentFilePath) ? "Untitled" : Path.GetFileName(_currentFilePath);
+            this.Text = $"Amp Measure - {fileName}" + (_isDirty ? "*" : "");
+        }
+
+  private
+    void SetAppIcon()
+    {
+        try
+        {
+            using(Bitmap bmp = ColumnIconHelper.CreateAppIconImage())
+            {
+                IntPtr hIcon = bmp.GetHicon();
+                using(Icon icon = Icon.FromHandle(hIcon))
+                {
+                    this.Icon = (Icon)icon.Clone();
+                }
+                DestroyIcon(hIcon);
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"Failed to set app icon: {ex.Message}");
+        }
+    }
+
+  private
+    void SetupMenuIcons()
+    {
+        openToolStripMenuItem.Image = ColumnIconHelper.CreateOpenIcon();
+        saveToolStripMenuItem.Image = ColumnIconHelper.CreateSaveIcon();
+        saveAsToolStripMenuItem.Image = ColumnIconHelper.CreateSaveAsIcon();
+        // Don't set icon for auto-save so checkmark can be visible
+        // autoSaveToolStripMenuItem.Image = ColumnIconHelper.CreateAutoSaveIcon();
+        recentFilesToolStripMenuItem.Image = ColumnIconHelper.CreateRecentFilesIcon();
+        
+        viewToolStripMenuItem.Image = ColumnIconHelper.CreateViewIcon();
+        resetColumnWidthsToolStripMenuItem.Image = ColumnIconHelper.CreateResetWidthsIcon();
+        resetColumnOrderToolStripMenuItem.Image = ColumnIconHelper.CreateResetOrderIcon();
+        clearGridToolStripMenuItem.Image = ColumnIconHelper.CreateClearGridIcon();
+    }
+
+        private void SetBusy(bool busy, string message = "")
+        {
+            if (busy)
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                menuStrip1.Enabled = false;
+                dataGridView1.Enabled = false;
+                toolStripStatusLabel1.Text = message;
+            }
+            else
+            {
+                Cursor.Current = Cursors.Default;
+                menuStrip1.Enabled = true;
+                dataGridView1.Enabled = true;
+                toolStripStatusLabel1.Text = "Ready";
+            }
+            Application.DoEvents(); // Force UI update
+        }
+
+        private async Task<bool> SaveWorksheetAsync(string filename, bool silent = false)
+        {
+            // Prevent concurrent saves
+            if (!Monitor.TryEnter(_saveLock, 0))
+            {
+                if (!silent)
+                {
+                    MessageBox.Show("A save operation is already in progress. Please wait.", "Save In Progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return false;
+            }
+
+            try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                // Capture data on UI thread
+                var data = GetWorksheetData();
+
+                // Run I/O on background thread
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextWriter writer = new StreamWriter(filename))
+                    {
+                        serializer.Serialize(writer, data);
+                    }
+                });
+
+                _currentFilePath = filename;
+                
+                // Save last worksheet path
+                Properties.Settings.Default.LastWorksheetPath = filename;
+                Properties.Settings.Default.Save();
+                
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                if (!silent)
+                {
+                    MessageBox.Show("Worksheet saved successfully.", "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+                Monitor.Exit(_saveLock);
+            }
+        }
+
+        private async Task LoadWorksheetAsync(string filename)
+        {
+            try
+            {
+                SetBusy(true, "Loading...");
+
+                if (!File.Exists(filename))
+                {
+                    // Remove from MRU if not found
+                    var files = new List<string>();
+                    if (!string.IsNullOrEmpty(Properties.Settings.Default.MRUList))
+                    {
+                        files.AddRange(Properties.Settings.Default.MRUList.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries));
+                        if (files.RemoveAll(f => f.Equals(filename, StringComparison.OrdinalIgnoreCase)) > 0)
+                        {
+                            Properties.Settings.Default.MRUList = string.Join("|", files);
+                            Properties.Settings.Default.Save();
+                            UpdateMRUMenu();
+                        }
+                    }
+                    MessageBox.Show($"File not found: {filename}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                WorksheetData data = null;
+                
+                // Run I/O on background thread
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextReader reader = new StreamReader(filename))
+                    {
+                        data = (WorksheetData)serializer.Deserialize(reader);
+                    }
+                });
+
+                // Apply data on UI thread
+                _isLoadingColumns = true;
+                dataGridView1.Rows.Clear();
+
+                // Restore columns
+                foreach (var colData in data.Columns)
+                {
+                    if (dataGridView1.Columns.Contains(colData.Name))
+                    {
+                        var col = dataGridView1.Columns[colData.Name];
+                        col.Width = colData.Width;
+                        // Ensure DisplayIndex is valid
+                        if (colData.DisplayIndex >= 0 && colData.DisplayIndex < dataGridView1.Columns.Count)
+                        {
+                            col.DisplayIndex = colData.DisplayIndex;
+                        }
+                    }
+                }
+
+                // Restore rows
+                foreach (var rowData in data.Rows)
+                {
+                    int rowIndex = dataGridView1.Rows.Add();
+                    for (int i = 0; i < rowData.Count && i < dataGridView1.Columns.Count; i++)
+                    {
+                        var col = dataGridView1.Columns[i];
+                        dataGridView1.Rows[rowIndex].Cells[col.Name].Value = rowData[i];
+                    }
+                }
+
+                _isLoadingColumns = false;
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+            }
+            catch (Exception ex)
+            {
+                _isLoadingColumns = false;
+                MessageBox.Show($"Failed to load worksheet: {ex.Message}", "Load Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private async void openToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (!CheckUnsavedChanges()) return;
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                await LoadWorksheetAsync(openFileDialog1.FileName);
+            }
+        }
+
+        private async void saveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsync();
+        }
+
+        private async void saveAsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            await PerformSaveAsAsync();
+        }
+
+        private async Task<bool> PerformSaveAsync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                return await PerformSaveAsAsync();
+            }
+            else
+            {
+                return await SaveWorksheetAsync(_currentFilePath);
+            }
+        }
+
+        private async Task<bool> PerformSaveAsAsync()
+        {
+            // Set default filename if currentFilePath exists
+            if (!string.IsNullOrEmpty(_currentFilePath))
+            {
+                saveFileDialog1.FileName = Path.GetFileName(_currentFilePath);
+                saveFileDialog1.InitialDirectory = Path.GetDirectoryName(_currentFilePath);
+            }
+            else
+            {
+                saveFileDialog1.FileName = "Worksheet.xml";
+                saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+            
+            if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                return await SaveWorksheetAsync(saveFileDialog1.FileName);
+            }
+            return false;
+        }
+
+        private void UpdateMRUMenu()
+        {
+            recentFilesToolStripMenuItem.DropDownItems.Clear();
+            
+            if (string.IsNullOrEmpty(Properties.Settings.Default.MRUList))
+            {
+                recentFilesToolStripMenuItem.Enabled = false;
+                return;
+            }
+
+            var files = Properties.Settings.Default.MRUList.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
+            if (files.Length == 0)
+            {
+                recentFilesToolStripMenuItem.Enabled = false;
+                return;
+            }
+
+            recentFilesToolStripMenuItem.Enabled = true;
+            for (int i = 0; i < files.Length; i++)
+            {
+                string file = files[i];
+                var item = new ToolStripMenuItem($"{i + 1}. {Path.GetFileName(file)}");
+                item.Tag = file;
+                item.Click += async (s, e) => {
+                    if (CheckUnsavedChanges()) await LoadWorksheetAsync((string)((ToolStripMenuItem)s).Tag);
+                };
+                recentFilesToolStripMenuItem.DropDownItems.Add(item);
+            }
+        }
+
+        // Remove synchronous methods to avoid confusion
+        // private bool SaveWorksheet(string filename, bool silent = false) ...
+        // private void LoadWorksheet(string filename) ...
+        // private bool PerformSave() ...
+        // private bool PerformSaveAs() ...
+        private bool CheckUnsavedChanges()
+        {
+            if (!_isDirty) return true;
+
+            var result = MessageBox.Show("Do you want to save changes to the current worksheet?", "Unsaved Changes", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            
+            if (result == DialogResult.Yes)
+            {
+                // We need to block here because this is called from synchronous contexts like OnFormClosing
+                // But PerformSaveAsync is async.
+                // For OnFormClosing, we can't easily await.
+                // We might need a synchronous version of Save for OnFormClosing.
+                // Or we can use .GetAwaiter().GetResult() but that risks deadlocks on UI thread.
+                // However, since we are closing, maybe it's acceptable.
+                // But wait, CheckUnsavedChanges is called from openToolStripMenuItem_Click which IS async now.
+                
+                // Let's make CheckUnsavedChanges async?
+                // But OnFormClosing is not async.
+                
+                // Strategy: Keep synchronous SaveWorksheet for OnFormClosing, use Async for everything else.
+                // Or we can use synchronous save for everything when prompted by CheckUnsavedChanges?
+                // The user said "during any long-running actions... UI is disabled".
+                // If we save on close, the app is closing, so UI disabled is implicit.
+                
+                // Let's keep a synchronous SaveWorksheet for OnFormClosing and CheckUnsavedChanges (when called from closing).
+                // But CheckUnsavedChanges is called from Open.
+                
+                return PerformSaveSync();
+            }
+            else if (result == DialogResult.No)
+            {
+                return true;
+            }
+            else // Cancel
+            {
+                return false;
+            }
+        }
+
+        private bool PerformSaveSync()
+        {
+            if (string.IsNullOrEmpty(_currentFilePath))
+            {
+                // Set default filename for Save dialog
+                saveFileDialog1.FileName = "Worksheet.xml";
+                saveFileDialog1.InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                
+                if (saveFileDialog1.ShowDialog() == DialogResult.OK)
+                {
+                    return SaveWorksheetSync(saveFileDialog1.FileName);
+                }
+                return false;
+            }
+            else
+            {
+                return SaveWorksheetSync(_currentFilePath);
+            }
+        }
+
+        private bool SaveWorksheetSync(string filename, bool silent = false)
+        {
+            // Prevent concurrent saves
+            if (!Monitor.TryEnter(_saveLock, 0))
+            {
+                if (!silent)
+                {
+                    MessageBox.Show("A save operation is already in progress. Please wait.", "Save In Progress", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return false;
+            }
+
+            try
+            {
+                if (!silent) SetBusy(true, "Saving...");
+                
+                var data = GetWorksheetData();
+
+                XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                using (TextWriter writer = new StreamWriter(filename))
+                {
+                    serializer.Serialize(writer, data);
+                }
+
+                _currentFilePath = filename;
+                
+                // Save last worksheet path
+                Properties.Settings.Default.LastWorksheetPath = filename;
+                Properties.Settings.Default.Save();
+                
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+                
+                if (!silent)
+                {
+                    MessageBox.Show("Worksheet saved successfully.", "Save Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!silent)
+                {
+                    MessageBox.Show($"Failed to save worksheet: {ex.Message}", "Save Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"Silent save failed: {ex.Message}");
+                }
+                return false;
+            }
+            finally
+            {
+                if (!silent) SetBusy(false);
+                Monitor.Exit(_saveLock);
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            if (autoSaveToolStripMenuItem.Checked && _isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                SaveWorksheetSync(_currentFilePath, true);
+            }
+            else if (!CheckUnsavedChanges())
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            base.OnFormClosing(e);
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+            SaveColumnOrder();
+            SaveWindowSettings();
+        }
+
+        private void DataGridView1_RowsAdded(object sender, DataGridViewRowsAddedEventArgs e)
+        {
+            if (!_isLoadingColumns) 
+            {
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void DataGridView1_RowsRemoved(object sender, DataGridViewRowsRemovedEventArgs e)
+        {
+            if (!_isLoadingColumns) 
+            {
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void autoSaveToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            autoSaveTimer.Enabled = autoSaveToolStripMenuItem.Checked;
+        }
+
+        private async void autoSaveTimer_Tick(object sender, EventArgs e)
+        {
+            if (_isDirty && !string.IsNullOrEmpty(_currentFilePath))
+            {
+                await AutoSaveWorksheet(_currentFilePath);
+            }
+        }
+
+        private void SetDefaultFormSize()
+        {
+            int totalWidth = 0;
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                totalWidth += 100;
+            }
+            
+            totalWidth += SystemInformation.VerticalScrollBarWidth + 20;
+            
+            this.ClientSize = new Size(totalWidth, 450);
+        }
+
+        private void InitializeGrid()
+        {
+            dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            dataGridView1.RowTemplate.Height = 25;
+            
+            // Set calculated columns to read-only
+            colRMSVolts.ReadOnly = true;
+            colPowerIn.ReadOnly = true;
+            colEfficiency.ReadOnly = true;
+
+            dataGridView1.ColumnWidthChanged += DataGridView1_ColumnWidthChanged;
+            dataGridView1.ColumnDisplayIndexChanged += DataGridView1_ColumnDisplayIndexChanged;
+            dataGridView1.DefaultValuesNeeded += DataGridView1_DefaultValuesNeeded;
+            dataGridView1.CellValueChanged += DataGridView1_CellValueChanged;
+            dataGridView1.RowsAdded += DataGridView1_RowsAdded;
+            dataGridView1.RowsRemoved += DataGridView1_RowsRemoved;
+            dataGridView1.CellPainting += DataGridView1_CellPainting;
+            
+            AddInitialRows(5);
+        }
+
+        private void SetupColumnIcons()
+        {
+            SetColumnHeaderWithIcon(colPeakVolts, "Peak Volts", ColumnIconHelper.CreatePeakVoltsIcon());
+            SetColumnHeaderWithIcon(colRMSVolts, "RMS Volts", ColumnIconHelper.CreateRMSVoltsIcon());
+            SetColumnHeaderWithIcon(colSupplyCurrent, "Supply Current", ColumnIconHelper.CreateCurrentIcon());
+            SetColumnHeaderWithIcon(colSupplyVoltage, "Supply Voltage", ColumnIconHelper.CreateVoltageIcon());
+            SetColumnHeaderWithIcon(colPowerIn, "Power In", ColumnIconHelper.CreatePowerInIcon());
+            SetColumnHeaderWithIcon(colPowerOut, "Power Out", ColumnIconHelper.CreatePowerOutIcon());
+            SetColumnHeaderWithIcon(colEfficiency, "Efficiency", ColumnIconHelper.CreateEfficiencyIcon());
+            SetColumnHeaderWithIcon(colLoadResistance, "Load Resistance", ColumnIconHelper.CreateResistanceIcon());
+            SetColumnHeaderWithIcon(colDateTime, "Date/Time", ColumnIconHelper.CreateDateTimeIcon());
+        }
+
+        private void LoadColumnOrder()
+        {
+            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.ColumnOrder))
+            {
+                return;
+            }
+
+            try
+            {
+                _isLoadingColumns = true;
+
+                var orderPairs = Properties.Settings.Default.ColumnOrder.Split(',');
+                
+                if (orderPairs.Length != dataGridView1.Columns.Count)
+                {
+                    ResetColumnOrderSettings();
+                    return;
+                }
+
+                var orderMap = new Dictionary<string, int>();
+                foreach (var pair in orderPairs)
+                {
+                    var parts = pair.Split(':');
+                    if (parts.Length == 2 && int.TryParse(parts[1], out int displayIndex))
+                    {
+                        orderMap[parts[0]] = displayIndex;
+                    }
+                    else
+                    {
+                        ResetColumnOrderSettings();
+                        return;
+                    }
+                }
+
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    if (orderMap.ContainsKey(column.Name))
+                    {
+                        int newIndex = orderMap[column.Name];
+                        if (newIndex >= 0 && newIndex < dataGridView1.Columns.Count)
+                        {
+                            column.DisplayIndex = newIndex;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load column order: {ex.Message}");
+                ResetColumnOrderSettings();
+            }
+            finally
+            {
+                _isLoadingColumns = false;
+            }
+        }
+
+        private void LoadColumnWidths()
+        {
+            if (string.IsNullOrWhiteSpace(Properties.Settings.Default.ColumnWidths))
+            {
+                return;
+            }
+
+            try
+            {
+                _isLoadingColumns = true;
+                
+                var widths = Properties.Settings.Default.ColumnWidths.Split(',');
+                
+                if (widths.Length != dataGridView1.Columns.Count)
+                {
+                    ResetColumnWidthSettings();
+                    return;
+                }
+
+                var parsedWidths = new List<int>();
+                foreach (var widthStr in widths)
+                {
+                    if (!int.TryParse(widthStr, out int width) || width < 10 || width > 5000)
+                    {
+                        ResetColumnWidthSettings();
+                        return;
+                    }
+                    parsedWidths.Add(width);
+                }
+
+                dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
+                for (int i = 0; i < parsedWidths.Count; i++)
+                {
+                    dataGridView1.Columns[i].Width = parsedWidths[i];
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load column widths: {ex.Message}");
+                ResetColumnWidthSettings();
+            }
+            finally
+            {
+                _isLoadingColumns = false;
+            }
+        }
+
+        private void LoadWindowSettings()
+        {
+            try
+            {
+                _isLoadingWindow = true;
+
+                var savedSize = Properties.Settings.Default.WindowSize;
+                var savedLocation = Properties.Settings.Default.WindowLocation;
+                var savedState = Properties.Settings.Default.WindowState;
+
+                if (savedSize.Width > 0 && savedSize.Height > 0)
+                {
+                    this.Size = savedSize;
+                }
+
+                if (savedLocation.X != 0 || savedLocation.Y != 0)
+                {
+                    if (IsLocationVisible(savedLocation, this.Size))
+                    {
+                        this.StartPosition = FormStartPosition.Manual;
+                        this.Location = savedLocation;
+                    }
+                }
+
+                if (savedState != FormWindowState.Minimized)
+                {
+                    this.WindowState = savedState;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to load window settings: {ex.Message}");
+            }
+            finally
+            {
+                _isLoadingWindow = false;
+            }
+        }
+
+        private WorksheetData GetWorksheetData()
+        {
+            var data = new WorksheetData();
+            
+            // Save columns
+            foreach (DataGridViewColumn col in dataGridView1.Columns)
+            {
+                data.Columns.Add(new WorksheetColumn
+                {
+                    Name = col.Name,
+                    HeaderText = col.HeaderText,
+                    Width = col.Width,
+                    DisplayIndex = col.DisplayIndex
+                });
+            }
+
+            // Save rows
+            foreach (DataGridViewRow row in dataGridView1.Rows)
+            {
+                if (row.IsNewRow) continue;
+                
+                var rowData = new List<string>();
+                foreach (DataGridViewColumn col in dataGridView1.Columns)
+                {
+                    var cellValue = row.Cells[col.Name].Value;
+                    rowData.Add(cellValue != null ? cellValue.ToString() : "");
+                }
+                data.Rows.Add(rowData);
+            }
+            return data;
+        }
+
+        private void AddToMRU(string filePath)
+        {
+            try
+            {
+                var files = new List<string>();
+                if (!string.IsNullOrEmpty(Properties.Settings.Default.MRUList))
+                {
+                    files.AddRange(Properties.Settings.Default.MRUList.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries));
+                }
+
+                // Remove if exists (to move to top)
+                files.RemoveAll(f => f.Equals(filePath, StringComparison.OrdinalIgnoreCase));
+                
+                // Add to top
+                files.Insert(0, filePath);
+                
+                // Keep max 10
+                if (files.Count > 10)
+                {
+                    files = files.Take(10).ToList();
+                }
+
+                Properties.Settings.Default.MRUList = string.Join("|", files);
+                Properties.Settings.Default.Save();
+                
+                UpdateMRUMenu();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to update MRU list: {ex.Message}");
+            }
+        }
+
+        private void SaveColumnWidths()
+        {
+            if (_isLoadingColumns)
+            {
+                return;
+            }
+
+            try
+            {
+                var widths = new List<string>();
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    widths.Add(column.Width.ToString());
+                }
+                Properties.Settings.Default.ColumnWidths = string.Join(",", widths);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save column widths: {ex.Message}");
+            }
+        }
+
+        private void SaveColumnOrder()
+        {
+            if (_isLoadingColumns)
+            {
+                return;
+            }
+
+            try
+            {
+                var orderPairs = new List<string>();
+                foreach (DataGridViewColumn column in dataGridView1.Columns)
+                {
+                    orderPairs.Add($"{column.Name}:{column.DisplayIndex}");
+                }
+                Properties.Settings.Default.ColumnOrder = string.Join(",", orderPairs);
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save column order: {ex.Message}");
+            }
+        }
+
+        private void SaveWindowSettings()
+        {
+            if (_isLoadingWindow)
+            {
+                return;
+            }
+
+            try
+            {
+                if (this.WindowState == FormWindowState.Normal)
+                {
+                    Properties.Settings.Default.WindowSize = this.Size;
+                    Properties.Settings.Default.WindowLocation = this.Location;
+                }
+                
+                Properties.Settings.Default.WindowState = this.WindowState;
+                Properties.Settings.Default.Save();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to save window settings: {ex.Message}");
+            }
+        }
+
+        private async Task AutoSaveWorksheet(string filename)
+        {
+            try
+            {
+                // Capture data on UI thread
+                var data = GetWorksheetData();
+
+                // Run I/O on background thread
+                await Task.Run(() => 
+                {
+                    XmlSerializer serializer = new XmlSerializer(typeof(WorksheetData));
+                    using (TextWriter writer = new StreamWriter(filename))
+                    {
+                        serializer.Serialize(writer, data);
+                    }
+                });
+
+                // Update state on UI thread
+                _currentFilePath = filename;
+                AddToMRU(filename);
+                _isDirty = false;
+                UpdateTitle();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Auto-save failed: {ex.Message}");
+            }
+        }
+
+        private void SetColumnHeaderWithIcon(DataGridViewColumn column, string text, Bitmap icon)
+        {
+            column.HeaderText = " " + text;
+            
+            if (dataGridView1.ColumnHeadersDefaultCellStyle.Padding == Padding.Empty)
+            {
+                dataGridView1.ColumnHeadersDefaultCellStyle.Padding = new Padding(20, 0, 0, 0);
+            }
+            
+            dataGridView1.Paint += (sender, e) =>
+            {
+                foreach (DataGridViewColumn col in dataGridView1.Columns)
+                {
+                    Rectangle rect = dataGridView1.GetCellDisplayRectangle(col.Index, -1, true);
+                    if (rect.Width > 0)
+                    {
+                        Bitmap colIcon = null;
+                        if (col == colPeakVolts) colIcon = ColumnIconHelper.CreatePeakVoltsIcon();
+                        else if (col == colRMSVolts) colIcon = ColumnIconHelper.CreateRMSVoltsIcon();
+                        else if (col == colSupplyCurrent) colIcon = ColumnIconHelper.CreateCurrentIcon();
+                        else if (col == colSupplyVoltage) colIcon = ColumnIconHelper.CreateVoltageIcon();
+                        else if (col == colPowerIn) colIcon = ColumnIconHelper.CreatePowerInIcon();
+                        else if (col == colPowerOut) colIcon = ColumnIconHelper.CreatePowerOutIcon();
+                        else if (col == colEfficiency) colIcon = ColumnIconHelper.CreateEfficiencyIcon();
+                        else if (col == colLoadResistance) colIcon = ColumnIconHelper.CreateResistanceIcon();
+                        else if (col == colDateTime) colIcon = ColumnIconHelper.CreateDateTimeIcon();
+
+                        if (colIcon != null)
+                        {
+                            e.Graphics.DrawImage(colIcon, rect.Left + 2, rect.Top + (rect.Height - 16) / 2, 16, 16);
+                            colIcon.Dispose();
+                        }
+                    }
+                }
+            };
+        }
+
+        private void AddInitialRows(int count)
+        {
+            for (int i = 0; i < count; i++)
+            {
+                int rowIndex = dataGridView1.Rows.Add();
+                dataGridView1.Rows[rowIndex].Cells["colSupplyVoltage"].Value = 50;
+                dataGridView1.Rows[rowIndex].Cells["colLoadResistance"].Value = 50;
+                dataGridView1.Rows[rowIndex].Cells["colDateTime"].Value = DateTime.Now.ToString("g");
+            }
+        }
+
+        private void DataGridView1_DefaultValuesNeeded(object sender, DataGridViewRowEventArgs e)
+        {
+            e.Row.Cells["colSupplyVoltage"].Value = 50;
+            e.Row.Cells["colLoadResistance"].Value = 50;
+            e.Row.Cells["colDateTime"].Value = DateTime.Now.ToString("g");
+        }
+
+        private void DataGridView1_CellValueChanged(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0) return;
+            
+            if (!_isLoadingColumns && !_isCalculating)
+            {
+                _isDirty = true;
+                UpdateTitle();
+            }
+            
+            // Avoid recursion if we are updating calculated cells
+            if (_isCalculating) return;
+
+            string colName = dataGridView1.Columns[e.ColumnIndex].Name;
+            
+            if (colName == "colPeakVolts" || 
+                colName == "colSupplyCurrent" || 
+                colName == "colSupplyVoltage" || 
+                colName == "colLoadResistance" ||
+                colName == "colPowerOut")
+            {
+                CalculateRow(e.RowIndex);
+            }
+        }
+
+        private void CalculateRow(int rowIndex)
+        {
+            _isCalculating = true;
+            try
+            {
+                var row = dataGridView1.Rows[rowIndex];
+                
+                // Get inputs
+                if (!double.TryParse(Convert.ToString(row.Cells["colPeakVolts"].Value), out double peakVolts)) peakVolts = 0;
+                if (!double.TryParse(Convert.ToString(row.Cells["colSupplyCurrent"].Value), out double supplyCurrent)) supplyCurrent = 0;
+                if (!double.TryParse(Convert.ToString(row.Cells["colSupplyVoltage"].Value), out double supplyVoltage)) supplyVoltage = 0;
+                if (!double.TryParse(Convert.ToString(row.Cells["colLoadResistance"].Value), out double loadResistance)) loadResistance = 0;
+                
+                // Get Power Out from user input (not calculated)
+                if (!double.TryParse(Convert.ToString(row.Cells["colPowerOut"].Value), out double powerOut)) powerOut = 0;
+
+                // Calculate RMS Volts (Peak * 0.707)
+                double rmsVolts = peakVolts * 0.70710678;
+                row.Cells["colRMSVolts"].Value = Math.Round(rmsVolts, 3);
+
+                // Calculate Power In (Supply V * Supply I)
+                double powerIn = supplyVoltage * supplyCurrent;
+                row.Cells["colPowerIn"].Value = Math.Round(powerIn, 3);
+
+                // Power Out is user-entered, no calculation needed
+
+                // Calculate Efficiency (Power Out / Power In * 100)
+                double efficiency = 0;
+                if (powerIn != 0)
+                {
+                    efficiency = (powerOut / powerIn) * 100;
+                }
+                row.Cells["colEfficiency"].Value = Math.Round(efficiency, 2);
+            }
+            finally
+            {
+                _isCalculating = false;
+            }
+        }
+
+        private void DataGridView1_CellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            // Only paint custom content for the Efficiency column
+            if (e.ColumnIndex == colEfficiency.Index && e.RowIndex >= 0)
+            {
+                // Parse the efficiency value
+                if (double.TryParse(Convert.ToString(e.Value), out double efficiency) && efficiency > 0)
+                {
+                    // Paint the default background
+                    e.Paint(e.CellBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
+
+                    // Calculate progress bar dimensions
+                    int padding = 3;
+                    int barHeight = 4;
+                    int barWidth = e.CellBounds.Width - (padding * 2);
+                    int barX = e.CellBounds.X + padding;
+                    int barY = e.CellBounds.Y + e.CellBounds.Height - barHeight - padding;
+
+                    // Determine color based on efficiency
+                    Color barColor;
+                    if (efficiency <= 20)
+                    {
+                        barColor = Color.FromArgb(220, 50, 50); // Red
+                    }
+                    else if (efficiency <= 40)
+                    {
+                        barColor = Color.FromArgb(255, 140, 0); // Orange
+                    }
+                    else
+                    {
+                        barColor = Color.FromArgb(50, 180, 50); // Green
+                    }
+
+                    // Draw background bar (light gray)
+                    using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(230, 230, 230)))
+                    {
+                        e.Graphics.FillRectangle(bgBrush, barX, barY, barWidth, barHeight);
+                    }
+
+                    // Calculate filled width (capped at 100%)
+                    double cappedEfficiency = Math.Min(efficiency, 100);
+                    int filledWidth = (int)(barWidth * (cappedEfficiency / 100.0));
+
+                    // Draw filled bar
+                    using (SolidBrush fillBrush = new SolidBrush(barColor))
+                    {
+                        if (filledWidth > 0)
+                        {
+                            e.Graphics.FillRectangle(fillBrush, barX, barY, filledWidth, barHeight);
+                        }
+                    }
+
+                    // Draw the text (efficiency percentage)
+                    if (e.Value != null)
+                    {
+                        TextFormatFlags flags = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter;
+                        Rectangle textRect = new Rectangle(e.CellBounds.X, e.CellBounds.Y, 
+                            e.CellBounds.Width, e.CellBounds.Height - barHeight - padding);
+                        TextRenderer.DrawText(e.Graphics, e.Value.ToString(), e.CellStyle.Font, 
+                            textRect, e.CellStyle.ForeColor, flags);
+                    }
+
+                    e.Handled = true;
+                }
+            }
+        }
+
+        private void ResetColumnOrderSettings()
+        {
+            try
+            {
+                Properties.Settings.Default.ColumnOrder = string.Empty;
+                Properties.Settings.Default.Save();
+                
+                // User inputs first: Peak Volts, Current, Power Out (as requested)
+                colPeakVolts.DisplayIndex = 0;
+                colSupplyCurrent.DisplayIndex = 1;
+                colPowerOut.DisplayIndex = 2;
+                
+                // Rest of the columns
+                colRMSVolts.DisplayIndex = 3;
+                colSupplyVoltage.DisplayIndex = 4;
+                colPowerIn.DisplayIndex = 5;
+                colEfficiency.DisplayIndex = 6;
+                colLoadResistance.DisplayIndex = 7;
+                colDateTime.DisplayIndex = 8;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to reset column order: {ex.Message}");
+            }
+        }
+
+        private void ResetColumnWidthSettings()
+        {
+            try
+            {
+                Properties.Settings.Default.ColumnWidths = string.Empty;
+                Properties.Settings.Default.Save();
+                dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to reset column widths: {ex.Message}");
+            }
+        }
+
+        private bool IsLocationVisible(Point location, Size size)
+        {
+            Rectangle formRectangle = new Rectangle(location, size);
+
+            foreach (Screen screen in Screen.AllScreens)
+            {
+                if (screen.WorkingArea.IntersectsWith(formRectangle))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void DataGridView1_ColumnWidthChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            if (dataGridView1.AutoSizeColumnsMode == DataGridViewAutoSizeColumnsMode.None && !_isLoadingColumns)
+            {
+                SaveColumnWidths();
+            }
+        }
+
+        private void DataGridView1_ColumnDisplayIndexChanged(object sender, DataGridViewColumnEventArgs e)
+        {
+            if (!_isLoadingColumns)
+            {
+                SaveColumnOrder();
+            }
+        }
+
+        private void resetColumnWidthsToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnWidthSettings();
+            MessageBox.Show("Column widths have been reset to default.", "Reset Complete", MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+        }
+
+        private void resetColumnOrderToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            ResetColumnOrderSettings();
+            MessageBox.Show("Column order has been reset to default.", "Reset Complete", MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+        }
+
+        private void clearGridToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (MessageBox.Show("Are you sure you want to clear all rows from the grid?", "Confirm Clear",
+                                MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes)
+            {
+                dataGridView1.Rows.Clear();
+            }
+        }
+
+        private void darkModeToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            bool darkMode = darkModeToolStripMenuItem.Checked;
+            Properties.Settings.Default.DarkMode = darkMode;
+            Properties.Settings.Default.Save();
+            ApplyTheme(darkMode);
+        }
+
+        private void ApplyTheme(bool darkMode)
+        {
+            if (darkMode)
+            {
+                // Dark theme colors
+                Color darkBackground = Color.FromArgb(45, 45, 48);
+                Color darkForeground = Color.FromArgb(241, 241, 241);
+                Color darkGridBackground = Color.FromArgb(37, 37, 38);
+                Color darkGridLines = Color.FromArgb(62, 62, 66);
+                Color darkHeaderBackground = Color.FromArgb(51, 51, 55);
+                Color darkMenuBackground = Color.FromArgb(45, 45, 48);
+                Color darkStatusBackground = Color.FromArgb(0, 122, 204);
+
+                // Form
+                this.BackColor = darkBackground;
+                this.ForeColor = darkForeground;
+
+                // DataGridView
+                dataGridView1.BackgroundColor = darkGridBackground;
+                dataGridView1.GridColor = darkGridLines;
+                dataGridView1.DefaultCellStyle.BackColor = darkGridBackground;
+                dataGridView1.DefaultCellStyle.ForeColor = darkForeground;
+                dataGridView1.DefaultCellStyle.SelectionBackColor = Color.FromArgb(51, 153, 255);
+                dataGridView1.DefaultCellStyle.SelectionForeColor = darkForeground;
+                dataGridView1.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(42, 42, 45);
+                dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = darkHeaderBackground;
+                dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = darkForeground;
+                dataGridView1.RowHeadersDefaultCellStyle.BackColor = darkHeaderBackground;
+                dataGridView1.RowHeadersDefaultCellStyle.ForeColor = darkForeground;
+                dataGridView1.EnableHeadersVisualStyles = false;
+
+                // Menu Strip
+                menuStrip1.BackColor = darkMenuBackground;
+                menuStrip1.ForeColor = darkForeground;
+                menuStrip1.Renderer = new ToolStripProfessionalRenderer(new DarkColorTable());
+                
+                // Apply ForeColor to all menu items recursively
+                ApplyMenuItemColors(menuStrip1.Items, darkForeground, darkMenuBackground);
+
+                // Status Strip
+                statusStrip1.BackColor = darkMenuBackground;
+                statusStrip1.ForeColor = darkForeground;
+                statusStrip1.Renderer = new ToolStripProfessionalRenderer(new DarkColorTable());
+            }
+            else
+            {
+                // Light theme (default system colors)
+                this.BackColor = SystemColors.Control;
+                this.ForeColor = SystemColors.ControlText;
+
+                // DataGridView
+                dataGridView1.BackgroundColor = SystemColors.AppWorkspace;
+                dataGridView1.GridColor = SystemColors.ControlDark;
+                dataGridView1.DefaultCellStyle.BackColor = SystemColors.Window;
+                dataGridView1.DefaultCellStyle.ForeColor = SystemColors.ControlText;
+                dataGridView1.DefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
+                dataGridView1.DefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+                dataGridView1.AlternatingRowsDefaultCellStyle.BackColor = SystemColors.Window;
+                dataGridView1.ColumnHeadersDefaultCellStyle.BackColor = SystemColors.Control;
+                dataGridView1.ColumnHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
+                dataGridView1.RowHeadersDefaultCellStyle.BackColor = SystemColors.Control;
+                dataGridView1.RowHeadersDefaultCellStyle.ForeColor = SystemColors.ControlText;
+                dataGridView1.EnableHeadersVisualStyles = true;
+
+                // Menu Strip
+                menuStrip1.BackColor = SystemColors.MenuBar;
+                menuStrip1.ForeColor = SystemColors.MenuText;
+                menuStrip1.Renderer = new ToolStripProfessionalRenderer();
+                
+                // Reset menu item colors
+                ApplyMenuItemColors(menuStrip1.Items, SystemColors.MenuText, SystemColors.Menu);
+
+                // Status Strip
+                statusStrip1.BackColor = SystemColors.Control;
+                statusStrip1.ForeColor = SystemColors.ControlText;
+                statusStrip1.Renderer = new ToolStripProfessionalRenderer();
+            }
+
+            // Refresh the grid to apply new colors
+            dataGridView1.Refresh();
+        }
+
+        private void ApplyMenuItemColors(ToolStripItemCollection items, Color foreColor, Color backColor)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                item.ForeColor = foreColor;
+                item.BackColor = backColor;
+                
+                if (item is ToolStripMenuItem menuItem && menuItem.HasDropDownItems)
+                {
+                    ApplyMenuItemColors(menuItem.DropDownItems, foreColor, backColor);
+                }
+            }
+        }
+    }
+
+    // Custom color table for dark theme menu/toolbar rendering
+    public class DarkColorTable : ProfessionalColorTable
+    {
+        public override Color MenuItemSelected
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color MenuItemSelectedGradientBegin
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color MenuItemSelectedGradientEnd
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color MenuItemPressedGradientBegin
+        {
+            get { return Color.FromArgb(51, 51, 55); }
+        }
+
+        public override Color MenuItemPressedGradientEnd
+        {
+            get { return Color.FromArgb(51, 51, 55); }
+        }
+
+        public override Color MenuItemBorder
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color MenuBorder
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color MenuItemPressedGradientMiddle
+        {
+            get { return Color.FromArgb(51, 51, 55); }
+        }
+
+        public override Color ToolStripDropDownBackground
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ImageMarginGradientBegin
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ImageMarginGradientMiddle
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ImageMarginGradientEnd
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ToolStripGradientBegin
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ToolStripGradientMiddle
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color ToolStripGradientEnd
+        {
+            get { return Color.FromArgb(45, 45, 48); }
+        }
+
+        public override Color SeparatorDark
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+
+        public override Color SeparatorLight
+        {
+            get { return Color.FromArgb(62, 62, 66); }
+        }
+    }
+
+    [Serializable]
+    public class WorksheetData
+    {
+        public List<WorksheetColumn> Columns { get; set; }
+        public List<List<string>> Rows { get; set; }
+
+        public WorksheetData()
+        {
+            Columns = new List<WorksheetColumn>();
+            Rows = new List<List<string>>();
+        }
+    }
+
+    [Serializable]
+    public class WorksheetColumn
+    {
+        public string Name { get; set; }
+        public string HeaderText { get; set; }
+        public int Width { get; set; }
+        public int DisplayIndex { get; set; }
+    }
+}

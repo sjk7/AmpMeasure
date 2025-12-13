@@ -1,0 +1,273 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain
+    {
+        private List<string[]> _virtualDataStore = new List<string[]>();
+        private Dictionary<int, Dictionary<string, string>> _virtualCellTags = new Dictionary<int, Dictionary<string, string>>();
+        
+        private void EnableVirtualMode()
+        {
+            dataGridView1.VirtualMode = true;
+            
+            typeof(DataGridView).InvokeMember("DoubleBuffered",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.SetProperty,
+                null, dataGridView1, new object[] { true });
+            
+            dataGridView1.CellValueNeeded += DataGridView1_CellValueNeeded;
+            dataGridView1.CellValuePushed += DataGridView1_CellValuePushed;
+            dataGridView1.NewRowNeeded += DataGridView1_NewRowNeeded;
+            dataGridView1.RowValidated += DataGridView1_RowValidated;
+            dataGridView1.UserDeletingRow += DataGridView1_UserDeletingRow;
+        }
+
+        private void DataGridView1_CellValueNeeded(object sender, DataGridViewCellValueEventArgs e)
+        {
+            if (e.RowIndex >= 0 && e.RowIndex < _virtualDataStore.Count)
+            {
+                var rowData = _virtualDataStore[e.RowIndex];
+                if (e.ColumnIndex >= 0 && e.ColumnIndex < rowData.Length)
+                {
+                    e.Value = rowData[e.ColumnIndex] ?? "";
+                }
+            }
+        }
+
+        private void DataGridView1_CellValuePushed(object sender, DataGridViewCellValueEventArgs e)
+        {
+            if (e.RowIndex >= _virtualDataStore.Count)
+            {
+                while (_virtualDataStore.Count <= e.RowIndex)
+                {
+                    _virtualDataStore.Add(new string[dataGridView1.Columns.Count]);
+                }
+            }
+
+            var rowData = _virtualDataStore[e.RowIndex];
+            if (e.ColumnIndex < rowData.Length)
+            {
+                rowData[e.ColumnIndex] = e.Value != null ? e.Value.ToString() : "";
+                
+                if (!_isLoadingColumns && !_isCalculating)
+                {
+                    _isDirty = true;
+                    UpdateTitle();
+                }
+            }
+        }
+
+        private void DataGridView1_NewRowNeeded(object sender, DataGridViewRowEventArgs e)
+        {
+            var newRow = new string[dataGridView1.Columns.Count];
+            newRow[colSupplyVoltage.Index] = _defaultSupplyVoltage.ToString();
+            newRow[colLoadResistance.Index] = _defaultLoadResistance.ToString();
+            newRow[colDateTime.Index] = DateTime.Now.ToString("g");
+            
+            _virtualDataStore.Add(newRow);
+            
+            var tags = new Dictionary<string, string>();
+            tags["colSupplyVoltage"] = "default";
+            tags["colLoadResistance"] = "default";
+            _virtualCellTags[_virtualDataStore.Count - 1] = tags;
+        }
+
+        private void DataGridView1_RowValidated(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex >= _virtualDataStore.Count || e.RowIndex < 0) return;
+
+            if (!_isLoadingColumns && !_isCalculating && !_isPropagatingValues)
+            {
+                string colName = dataGridView1.Columns[e.ColumnIndex].Name;
+                
+                if (colName == "colSupplyVoltage")
+                {
+                    SetVirtualCellTag(e.RowIndex, "colSupplyVoltage", "user-edited");
+                    HandleVirtualSupplyVoltageChanged(e.RowIndex);
+                }
+                else if (colName == "colLoadResistance")
+                {
+                    SetVirtualCellTag(e.RowIndex, "colLoadResistance", "user-edited");
+                    HandleVirtualLoadResistanceChanged(e.RowIndex);
+                }
+                
+                if (colName != "colDateTime" && colName != "colRMSVolts" && 
+                    colName != "colPowerIn" && colName != "colEfficiency")
+                {
+                    _virtualDataStore[e.RowIndex][colDateTime.Index] = DateTime.Now.ToString("g");
+                }
+                
+                if (colName == "colPeakVolts" || colName == "colSupplyCurrent" || 
+                    colName == "colSupplyVoltage" || colName == "colLoadResistance" || colName == "colPowerOut")
+                {
+                    CalculateVirtualRow(e.RowIndex);
+                }
+            }
+        }
+
+        private void DataGridView1_UserDeletingRow(object sender, DataGridViewRowCancelEventArgs e)
+        {
+            if (e.Row.Index < _virtualDataStore.Count)
+            {
+                _virtualDataStore.RemoveAt(e.Row.Index);
+                _virtualCellTags.Remove(e.Row.Index);
+                
+                _isDirty = true;
+                UpdateTitle();
+            }
+        }
+
+        private void SetVirtualRowCount(int count)
+        {
+            if (count > 0)
+            {
+                dataGridView1.RowCount = count;
+            }
+            else
+            {
+                dataGridView1.RowCount = 1;
+            }
+        }
+
+        private void ClearVirtualData()
+        {
+            dataGridView1.SuspendLayout();
+            
+            _virtualDataStore.Clear();
+            _virtualCellTags.Clear();
+            dataGridView1.RowCount = 1;
+            
+            dataGridView1.ResumeLayout();
+            dataGridView1.Refresh();
+        }
+
+        private string GetVirtualCellTag(int rowIndex, string columnName)
+        {
+            if (_virtualCellTags.TryGetValue(rowIndex, out var tags))
+            {
+                if (tags.TryGetValue(columnName, out var tag))
+                {
+                    return tag;
+                }
+            }
+            return null;
+        }
+
+        private void SetVirtualCellTag(int rowIndex, string columnName, string tag)
+        {
+            if (!_virtualCellTags.ContainsKey(rowIndex))
+            {
+                _virtualCellTags[rowIndex] = new Dictionary<string, string>();
+            }
+            _virtualCellTags[rowIndex][columnName] = tag;
+        }
+
+        private void CalculateVirtualRow(int rowIndex)
+        {
+            if (rowIndex >= _virtualDataStore.Count) return;
+            
+            _isCalculating = true;
+            try
+            {
+                var rowData = _virtualDataStore[rowIndex];
+                
+                if (!double.TryParse(rowData[colPeakVolts.Index], out double peakVolts)) peakVolts = 0;
+                if (!double.TryParse(rowData[colSupplyCurrent.Index], out double supplyCurrent)) supplyCurrent = 0;
+                if (!double.TryParse(rowData[colSupplyVoltage.Index], out double supplyVoltage)) supplyVoltage = 0;
+                if (!double.TryParse(rowData[colLoadResistance.Index], out double loadResistance)) loadResistance = 0;
+                if (!double.TryParse(rowData[colPowerOut.Index], out double powerOut)) powerOut = 0;
+
+                double rmsVolts = peakVolts * 0.70710678;
+                rowData[colRMSVolts.Index] = Math.Round(rmsVolts, 3).ToString();
+
+                double powerIn = supplyVoltage * supplyCurrent;
+                rowData[colPowerIn.Index] = Math.Round(powerIn, 3).ToString();
+
+                double efficiency = 0;
+                if (powerIn != 0)
+                {
+                    efficiency = (powerOut / powerIn) * 100;
+                }
+                rowData[colEfficiency.Index] = Math.Round(efficiency, 2).ToString();
+                
+                dataGridView1.InvalidateRow(rowIndex);
+            }
+            finally
+            {
+                _isCalculating = false;
+            }
+        }
+
+        private void HandleVirtualSupplyVoltageChanged(int changedRowIndex)
+        {
+            if (changedRowIndex >= _virtualDataStore.Count) return;
+            
+            var value = _virtualDataStore[changedRowIndex][colSupplyVoltage.Index];
+            
+            if (!string.IsNullOrEmpty(value) && double.TryParse(value, out double newVoltage))
+            {
+                _defaultSupplyVoltage = newVoltage;
+                Properties.Settings.Default.DefaultSupplyVoltage = newVoltage;
+                Properties.Settings.Default.Save();
+                
+                _isPropagatingValues = true;
+                try
+                {
+                    for (int i = 0; i < _virtualDataStore.Count; i++)
+                    {
+                        if (i == changedRowIndex) continue;
+                        
+                        var tag = GetVirtualCellTag(i, "colSupplyVoltage");
+                        if (tag == null || tag == "default")
+                        {
+                            _virtualDataStore[i][colSupplyVoltage.Index] = newVoltage.ToString();
+                            SetVirtualCellTag(i, "colSupplyVoltage", "default");
+                        }
+                    }
+                    dataGridView1.Invalidate();
+                }
+                finally
+                {
+                    _isPropagatingValues = false;
+                }
+            }
+        }
+
+        private void HandleVirtualLoadResistanceChanged(int changedRowIndex)
+        {
+            if (changedRowIndex >= _virtualDataStore.Count) return;
+            
+            var value = _virtualDataStore[changedRowIndex][colLoadResistance.Index];
+            
+            if (!string.IsNullOrEmpty(value) && double.TryParse(value, out double newResistance))
+            {
+                _defaultLoadResistance = newResistance;
+                Properties.Settings.Default.DefaultLoadResistance = newResistance;
+                Properties.Settings.Default.Save();
+                
+                _isPropagatingValues = true;
+                try
+                {
+                    for (int i = 0; i < _virtualDataStore.Count; i++)
+                    {
+                        if (i == changedRowIndex) continue;
+                        
+                        var tag = GetVirtualCellTag(i, "colLoadResistance");
+                        if (tag == null || tag == "default")
+                        {
+                            _virtualDataStore[i][colLoadResistance.Index] = newResistance.ToString();
+                            SetVirtualCellTag(i, "colLoadResistance", "default");
+                        }
+                    }
+                    dataGridView1.Invalidate();
+                }
+                finally
+                {
+                    _isPropagatingValues = false;
+                }
+            }
+        }
+    }
+}

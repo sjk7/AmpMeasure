@@ -1,0 +1,10 @@
+E:\code\AmpMeasure\AmpMeasure\bin\Release\AmpMeasure.exe.config
+E:\code\AmpMeasure\AmpMeasure\bin\Release\AmpMeasure.exe
+E:\code\AmpMeasure\AmpMeasure\bin\Release\AmpMeasure.pdb
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.csproj.AssemblyReference.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.AmpMeasureMain.resources
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.Properties.Resources.resources
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.csproj.GenerateResource.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.csproj.CoreCompileInputs.cache
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.exe
+E:\code\AmpMeasure\AmpMeasure\obj\Release\AmpMeasure.pdb

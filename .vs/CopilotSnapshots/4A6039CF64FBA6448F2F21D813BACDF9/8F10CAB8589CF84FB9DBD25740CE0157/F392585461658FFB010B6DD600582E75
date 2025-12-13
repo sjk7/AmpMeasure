@@ -1,0 +1,203 @@
+﻿using System;
+using System.Drawing;
+using System.IO;
+using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+
+namespace AmpMeasure
+{
+    public partial class AmpMeasureMain : Form
+    {
+        private bool _isLoadingColumns = false;
+        private bool _isLoadingWindow = false;
+        private bool _isCalculating = false;
+        private bool _isDirty = false;
+        private string _currentFilePath = null;
+        private double _defaultSupplyVoltage = 50;
+        private double _defaultLoadResistance = 50;
+        private bool _isPropagatingValues = false;
+        private PerformanceProfiler _profiler = new PerformanceProfiler(true);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)] 
+        extern static bool DestroyIcon(IntPtr handle);
+
+        public AmpMeasureMain()
+        {
+            this.SetStyle(ControlStyles.OptimizedDoubleBuffer | 
+                          ControlStyles.AllPaintingInWmPaint | 
+                          ControlStyles.UserPaint, true);
+            this.UpdateStyles();
+            
+            SuspendLayout();
+            
+            InitializeComponent();
+            
+            _defaultSupplyVoltage = Properties.Settings.Default.DefaultSupplyVoltage;
+            _defaultLoadResistance = Properties.Settings.Default.DefaultLoadResistance;
+            
+            darkModeToolStripMenuItem.Checked = Properties.Settings.Default.DarkMode;
+            if (Properties.Settings.Default.DarkMode)
+            {
+                ApplyTheme(true);
+            }
+            
+            SetAppIcon();
+            SetDefaultFormSize();
+            InitializeGrid();
+            SetupColumnIcons();
+            SetupMenuIcons();
+            LoadColumnOrder();
+            LoadColumnWidths();
+            LoadWindowSettings();
+            UpdateMRUMenu();
+            UpdateTitle();
+            
+            // Hide debug menu items on production machines
+            HideDebugMenuItems();
+            
+            // Add keyboard shortcut for new entry
+            this.KeyPreview = true;
+            this.KeyDown += AmpMeasureMain_KeyDown;
+            
+            _isDirty = false;
+            
+            string lastWorksheet = Properties.Settings.Default.LastWorksheetPath;
+            if (!string.IsNullOrEmpty(lastWorksheet) && File.Exists(lastWorksheet))
+            {
+                this.Shown += async (s, e) => { await LoadWorksheetAsync(lastWorksheet); };
+            }
+            
+            ResumeLayout(true);
+            
+            dataGridView1.Refresh();
+            
+            // Log app startup only in debug mode
+            if (IsDebugMode())
+            {
+                _profiler.StartTimer("App Startup");
+                _profiler.StopTimer("App Startup");
+                _profiler.LogToFile($"Application Started - {_virtualDataStore.Count} initial rows");
+            }
+        }
+
+        private void AmpMeasureMain_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Control && e.KeyCode == Keys.N)
+            {
+                e.Handled = true;
+                e.SuppressKeyPress = true;
+                JumpToNewEntry();
+            }
+        }
+
+        private bool IsDebugMode()
+        {
+            // Check if running on development machine
+            string machineName = Environment.MachineName.ToUpper();
+            string userName = Environment.UserName.ToUpper();
+            
+            // Add your machine/user identifiers here
+            return machineName.Contains("DESKTOP") || machineName.Contains("DEV") || 
+                   userName.Contains("ADMIN") || userName.Contains("DEVELOPER");
+        }
+
+        private void JumpToNewEntry()
+        {
+            try
+            {
+                // Move to the last row (new row in virtual mode)
+                int lastRowIndex = dataGridView1.RowCount - 1;
+                if (lastRowIndex >= 0)
+                {
+                    dataGridView1.CurrentCell = dataGridView1[colPeakVolts.Index, lastRowIndex];
+                    dataGridView1.BeginEdit(true);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"JumpToNewEntry failed: {ex.Message}");
+            }
+        }
+
+        private void HideDebugMenuItems()
+        {
+            if (!IsDebugMode())
+            {
+                generateTestDataToolStripMenuItem.Visible = false;
+                viewPerformanceLogToolStripMenuItem.Visible = false;
+                toolStripSeparator5.Visible = false;
+                toolStripSeparator6.Visible = false;
+            }
+        }
+
+        private void UpdateTitle()
+        {
+            string fileName = string.IsNullOrEmpty(_currentFilePath) ? "Untitled" : Path.GetFileName(_currentFilePath);
+            this.Text = $"Amp Measure - {fileName}" + (_isDirty ? "*" : "");
+        }
+
+        private void SetBusy(bool busy, string message = "")
+        {
+            if (busy)
+            {
+                Cursor.Current = Cursors.WaitCursor;
+                menuStrip1.Enabled = false;
+                dataGridView1.Enabled = false;
+                toolStripStatusLabel1.Text = message;
+            }
+            else
+            {
+                Cursor.Current = Cursors.Default;
+                menuStrip1.Enabled = true;
+                dataGridView1.Enabled = true;
+                toolStripStatusLabel1.Text = "Ready";
+            }
+        }
+
+        private void SetAppIcon()
+        {
+            try
+            {
+                using (Bitmap bmp = ColumnIconHelper.CreateAppIconImage())
+                {
+                    IntPtr hIcon = bmp.GetHicon();
+                    using (Icon icon = Icon.FromHandle(hIcon))
+                    {
+                        this.Icon = (Icon)icon.Clone();
+                    }
+                    DestroyIcon(hIcon);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to set app icon: {ex.Message}");
+            }
+        }
+
+        private void SetupMenuIcons()
+        {
+            openToolStripMenuItem.Image = ColumnIconHelper.CreateOpenIcon();
+            saveToolStripMenuItem.Image = ColumnIconHelper.CreateSaveIcon();
+            saveAsToolStripMenuItem.Image = ColumnIconHelper.CreateSaveAsIcon();
+            recentFilesToolStripMenuItem.Image = ColumnIconHelper.CreateRecentFilesIcon();
+            
+            viewToolStripMenuItem.Image = ColumnIconHelper.CreateViewIcon();
+            resetColumnWidthsToolStripMenuItem.Image = ColumnIconHelper.CreateResetWidthsIcon();
+            resetColumnOrderToolStripMenuItem.Image = ColumnIconHelper.CreateResetOrderIcon();
+            clearGridToolStripMenuItem.Image = ColumnIconHelper.CreateClearGridIcon();
+        }
+
+        private void SetDefaultFormSize()
+        {
+            int totalWidth = 0;
+            foreach (DataGridViewColumn column in dataGridView1.Columns)
+            {
+                totalWidth += 100;
+            }
+            
+            totalWidth += SystemInformation.VerticalScrollBarWidth + 20;
+            this.ClientSize = new Size(totalWidth, 450);
+        }
+    }
+}

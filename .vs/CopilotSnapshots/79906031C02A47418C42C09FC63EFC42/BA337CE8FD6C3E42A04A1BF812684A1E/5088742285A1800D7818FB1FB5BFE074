@@ -1,0 +1,645 @@
+﻿using System;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+
+namespace AmpMeasure
+{
+    public static class ColumnIconHelper
+    {
+        public static Bitmap CreatePeakVoltsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Lightning bolt with gradient
+                Point[] points = new Point[]
+                {
+                    new Point(10, 2),
+                    new Point(6, 8),
+                    new Point(9, 8),
+                    new Point(5, 14),
+                    new Point(9, 7),
+                    new Point(6, 7),
+                    new Point(10, 2)
+                };
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(255, 200, 0),
+                    Color.FromArgb(255, 140, 0),
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillPolygon(brush, points);
+                }
+                using (Pen pen = new Pen(Color.FromArgb(200, 100, 0), 1))
+                {
+                    g.DrawPolygon(pen, points);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateRMSVoltsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Sine wave with gradient
+                using (Pen pen = new Pen(Color.FromArgb(0, 120, 215), 2.5f))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    for (int x = 0; x < 15; x++)
+                    {
+                        float y1 = 8 + (float)(4 * Math.Sin(x * Math.PI / 4));
+                        float y2 = 8 + (float)(4 * Math.Sin((x + 1) * Math.PI / 4));
+                        g.DrawLine(pen, x, y1, x + 1, y2);
+                    }
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateCurrentIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient circle background
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(2, 2, 12, 12),
+                    Color.FromArgb(255, 70, 70),
+                    Color.FromArgb(200, 30, 30),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 2, 2, 12, 12);
+                }
+                
+                // Outer ring with gradient
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(1, 1, 14, 14),
+                    Color.FromArgb(255, 100, 100),
+                    Color.FromArgb(220, 50, 50),
+                    LinearGradientMode.Vertical))
+                {
+                    using (Pen pen = new Pen(brush, 1.5f))
+                    {
+                        g.DrawEllipse(pen, 2, 2, 12, 12);
+                    }
+                }
+                
+                // "I" symbol with white/bright color
+                using (Font font = new Font("Arial", 9, FontStyle.Bold))
+                using (SolidBrush textBrush = new SolidBrush(Color.White))
+                {
+                    StringFormat sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Center;
+                    sf.LineAlignment = StringAlignment.Center;
+                    g.DrawString("I", font, textBrush, new RectangleF(0, 0, 16, 16), sf);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateVoltageIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient circle background
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(2, 2, 12, 12),
+                    Color.FromArgb(50, 200, 120),
+                    Color.FromArgb(20, 150, 80),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 2, 2, 12, 12);
+                }
+                
+                // Outer ring with gradient
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(1, 1, 14, 14),
+                    Color.FromArgb(80, 220, 140),
+                    Color.FromArgb(30, 180, 100),
+                    LinearGradientMode.Vertical))
+                {
+                    using (Pen pen = new Pen(brush, 1.5f))
+                    {
+                        g.DrawEllipse(pen, 2, 2, 12, 12);
+                    }
+                }
+                
+                // "V" symbol with white/bright color
+                using (Font font = new Font("Arial", 8, FontStyle.Bold))
+                using (SolidBrush textBrush = new SolidBrush(Color.White))
+                {
+                    StringFormat sf = new StringFormat();
+                    sf.Alignment = StringAlignment.Center;
+                    sf.LineAlignment = StringAlignment.Center;
+                    g.DrawString("V", font, textBrush, new RectangleF(0, 0, 16, 16), sf);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreatePowerInIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient circle background (Purple)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(2, 2, 12, 12),
+                    Color.FromArgb(180, 80, 220),
+                    Color.FromArgb(100, 40, 150),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 2, 2, 12, 12);
+                }
+
+                // Outer ring
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(1, 1, 14, 14),
+                    Color.FromArgb(200, 100, 240),
+                    Color.FromArgb(120, 50, 160),
+                    LinearGradientMode.Vertical))
+                {
+                    using (Pen pen = new Pen(brush, 1.5f))
+                    {
+                        g.DrawEllipse(pen, 2, 2, 12, 12);
+                    }
+                }
+
+                // White Lightning Bolt (Input Energy)
+                Point[] bolt = new Point[]
+                {
+                    new Point(9, 4),
+                    new Point(6, 8),
+                    new Point(8, 8),
+                    new Point(6, 12),
+                    new Point(10, 7),
+                    new Point(8, 7),
+                    new Point(9, 4)
+                };
+                using (SolidBrush symbolBrush = new SolidBrush(Color.White))
+                {
+                    g.FillPolygon(symbolBrush, bolt);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreatePowerOutIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient circle background (Orange)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(2, 2, 12, 12),
+                    Color.FromArgb(255, 160, 50),
+                    Color.FromArgb(200, 80, 20),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 2, 2, 12, 12);
+                }
+
+                // Outer ring
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(1, 1, 14, 14),
+                    Color.FromArgb(255, 180, 80),
+                    Color.FromArgb(220, 100, 40),
+                    LinearGradientMode.Vertical))
+                {
+                    using (Pen pen = new Pen(brush, 1.5f))
+                    {
+                        g.DrawEllipse(pen, 2, 2, 12, 12);
+                    }
+                }
+
+                // White Antenna Symbol (Output)
+                using (Pen pen = new Pen(Color.White, 1.5f))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    pen.LineJoin = LineJoin.Round;
+                    
+                    // Vertical stem
+                    g.DrawLine(pen, 8, 12, 8, 7);
+                    
+                    // V-shape arms (Dipole)
+                    g.DrawLine(pen, 8, 7, 4, 4);
+                    g.DrawLine(pen, 8, 7, 12, 4);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateEfficiencyIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Percentage symbol with gradient
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(50, 180, 50),
+                    Color.FromArgb(20, 130, 20),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(brush, 2, 2, 4, 4);
+                    g.FillEllipse(brush, 10, 10, 4, 4);
+                }
+                using (Pen pen = new Pen(Color.FromArgb(30, 150, 30), 2.5f))
+                {
+                    pen.StartCap = LineCap.Round;
+                    pen.EndCap = LineCap.Round;
+                    g.DrawLine(pen, 3, 13, 13, 3);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateResistanceIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                // Resistor symbol (zigzag) with gradient
+                Point[] points = new Point[]
+                {
+                    new Point(1, 8),
+                    new Point(3, 4),
+                    new Point(5, 12),
+                    new Point(7, 4),
+                    new Point(9, 12),
+                    new Point(11, 4),
+                    new Point(13, 12),
+                    new Point(15, 8)
+                };
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(180, 100, 50),
+                    Color.FromArgb(120, 60, 20),
+                    LinearGradientMode.Horizontal))
+                {
+                    using (Pen pen = new Pen(brush, 2.5f))
+                    {
+                        pen.StartCap = LineCap.Round;
+                        pen.EndCap = LineCap.Round;
+                        pen.LineJoin = LineJoin.Round;
+                        g.DrawLines(pen, points);
+                    }
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateViewIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient background (Blue)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(60, 140, 220),
+                    Color.FromArgb(30, 90, 180),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 1, 1, 14, 14);
+                }
+
+                // Eye symbol
+                using (Pen pen = new Pen(Color.White, 1.5f))
+                {
+                    g.DrawArc(pen, 3, 5, 10, 6, 180, 180); // Top lid
+                    g.DrawArc(pen, 3, 5, 10, 6, 0, 180);   // Bottom lid
+                    
+                    // Pupil
+                    using (SolidBrush brush = new SolidBrush(Color.White))
+                    {
+                        g.FillEllipse(brush, 6.5f, 6.5f, 3, 3);
+                    }
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateResetWidthsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient background (Teal)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(40, 180, 160),
+                    Color.FromArgb(20, 120, 100),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 1, 1, 14, 14);
+                }
+
+                // Width symbol |<->|
+                using (Pen pen = new Pen(Color.White, 1.5f))
+                {
+                    // Vertical lines
+                    g.DrawLine(pen, 4, 4, 4, 12);
+                    g.DrawLine(pen, 12, 4, 12, 12);
+                    
+                    // Arrow shaft
+                    g.DrawLine(pen, 4, 8, 12, 8);
+                    
+                    // Arrow heads
+                    // Left
+                    g.DrawLine(pen, 4, 8, 6, 6);
+                    g.DrawLine(pen, 4, 8, 6, 10);
+                    // Right
+                    g.DrawLine(pen, 12, 8, 10, 6);
+                    g.DrawLine(pen, 12, 8, 10, 10);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateResetOrderIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient background (Purple/Indigo)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(120, 100, 220),
+                    Color.FromArgb(80, 60, 160),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 1, 1, 14, 14);
+                }
+
+                // Swap arrows symbol
+                using (Pen pen = new Pen(Color.White, 1.5f))
+                {
+                    // Top arrow (Right)
+                    g.DrawLine(pen, 4, 6, 11, 6);
+                    g.DrawLine(pen, 11, 6, 9, 4);
+                    g.DrawLine(pen, 11, 6, 9, 8);
+
+                    // Bottom arrow (Left)
+                    g.DrawLine(pen, 12, 10, 5, 10);
+                    g.DrawLine(pen, 5, 10, 7, 8);
+                    g.DrawLine(pen, 5, 10, 7, 12);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateClearGridIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Gradient background (Red)
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(220, 60, 60),
+                    Color.FromArgb(160, 30, 30),
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, 1, 1, 14, 14);
+                }
+
+                // X symbol
+                using (Pen pen = new Pen(Color.White, 2f))
+                {
+                    g.DrawLine(pen, 5, 5, 11, 11);
+                    g.DrawLine(pen, 11, 5, 5, 11);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateAppIconImage()
+        {
+            int size = 64;
+            Bitmap bmp = new Bitmap(size, size);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                // Background shape (Bright Blue Gradient Circle)
+                Rectangle rect = new Rectangle(2, 2, size - 4, size - 4);
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    rect,
+                    Color.FromArgb(0, 160, 255), // Bright Sky Blue
+                    Color.FromArgb(0, 80, 200),  // Deep Blue
+                    LinearGradientMode.ForwardDiagonal))
+                {
+                    g.FillEllipse(bgBrush, rect);
+                }
+
+                // Top shine/reflection for glass effect
+                using (LinearGradientBrush shineBrush = new LinearGradientBrush(
+                    new Rectangle(2, 2, size - 4, size / 2),
+                    Color.FromArgb(80, 255, 255, 255),
+                    Color.Transparent,
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillEllipse(shineBrush, 4, 4, size - 8, (size - 8) * 0.6f);
+                }
+
+                // Gauge Arc (White)
+                using (Pen arcPen = new Pen(Color.White, 5))
+                {
+                    arcPen.StartCap = LineCap.Round;
+                    arcPen.EndCap = LineCap.Round;
+                    // Draw arc from bottom-left around to bottom-right
+                    g.DrawArc(arcPen, 12, 12, size - 24, size - 24, 135, 270);
+                }
+
+                // Gauge Needle (Orange/Gold)
+                float centerX = size / 2.0f;
+                float centerY = size / 2.0f;
+                
+                using (Pen needlePen = new Pen(Color.FromArgb(255, 200, 50), 4))
+                {
+                    needlePen.StartCap = LineCap.Round;
+                    needlePen.EndCap = LineCap.Round;
+                    
+                    var state = g.Save();
+                    g.TranslateTransform(centerX, centerY);
+                    g.RotateTransform(45); // Point towards top-right (high measurement)
+                    g.DrawLine(needlePen, 0, 4, 0, -((size / 2) - 10));
+                    g.Restore(state);
+                }
+                
+                // Center pivot
+                using (SolidBrush pivotBrush = new SolidBrush(Color.White))
+                {
+                    g.FillEllipse(pivotBrush, centerX - 5, centerY - 5, 10, 10);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateOpenIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Folder body (Yellow/Gold)
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(255, 220, 100),
+                    Color.FromArgb(200, 160, 50),
+                    LinearGradientMode.Vertical))
+                {
+                    // Back part
+                    g.FillRectangle(brush, 2, 4, 12, 10);
+                    // Tab
+                    g.FillRectangle(brush, 2, 2, 6, 4);
+                }
+                
+                // Front flap (Lighter)
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(255, 240, 150),
+                    Color.FromArgb(220, 180, 80),
+                    LinearGradientMode.Vertical))
+                {
+                    Point[] flap = new Point[] {
+                        new Point(2, 14),
+                        new Point(14, 14),
+                        new Point(14, 6),
+                        new Point(4, 6)
+                    };
+                    g.FillPolygon(brush, flap);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateSaveIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Floppy disk body (Blue)
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(60, 100, 200),
+                    Color.FromArgb(30, 60, 150),
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillRectangle(brush, 2, 2, 12, 12);
+                }
+                
+                // Metal slider (Silver)
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(200, 200, 200)))
+                {
+                    g.FillRectangle(brush, 4, 2, 8, 5);
+                }
+                
+                // Label area (White)
+                using (SolidBrush brush = new SolidBrush(Color.White))
+                {
+                    g.FillRectangle(brush, 4, 9, 8, 5);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateSaveAsIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Draw Save icon first
+                using (Bitmap saveIcon = CreateSaveIcon())
+                {
+                    g.DrawImage(saveIcon, 0, 0);
+                }
+                
+                // Add a pencil or "..." to indicate "As"
+                // Let's add a small pencil overlay
+                using (Pen pen = new Pen(Color.White, 1))
+                using (SolidBrush brush = new SolidBrush(Color.Orange))
+                {
+                    // Pencil body
+                    Point[] pencil = new Point[] {
+                        new Point(10, 14),
+                        new Point(14, 10),
+                        new Point(15, 11),
+                        new Point(11, 15)
+                    };
+                    g.FillPolygon(brush, pencil);
+                    g.DrawPolygon(pen, pencil);
+                }
+            }
+            return bmp;
+        }
+
+        public static Bitmap CreateDateTimeIcon()
+        {
+            Bitmap bmp = new Bitmap(16, 16);
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                
+                // Clock face (Light Blue)
+                using (LinearGradientBrush brush = new LinearGradientBrush(
+                    new Rectangle(0, 0, 16, 16),
+                    Color.FromArgb(240, 240, 255),
+                    Color.FromArgb(200, 200, 220),
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillEllipse(brush, 1, 1, 14, 14);
+                }
+                
+                // Border
+                using (Pen pen = new Pen(Color.FromArgb(80, 80, 100), 1.5f))
+                {
+                    g.DrawEllipse(pen, 1, 1, 14, 14);
+                }
+                
+                // Hands
+                using (Pen pen = new Pen(Color.Black, 1.5f))
+                {
+                    pen.EndCap = LineCap.Round;
+                    // Hour hand
+                    g.DrawLine(pen, 8, 8, 8, 4);
+                    // Minute hand
+                    g.DrawLine(pen, 8, 8, 11, 8);
+                }
+            }
+            return bmp;
+        }
+    }
+}
