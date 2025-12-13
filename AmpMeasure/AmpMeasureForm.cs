@@ -108,6 +108,8 @@ namespace AmpMeasure
             {
                 // Only show one initial row if no file is loaded
                 AddInitialRows(1);
+                // Set fixed width for first run to fit all columns
+                this.Width = 1200;
                 // Set focus to the first editable cell (Peak Volts)
                 this.Shown += (s, e) =>
                 {

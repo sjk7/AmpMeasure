@@ -5,18 +5,6 @@
     {
       "AbsoluteMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|e:\\code\\ampmeasure\\ampmeasure\\ampmeasureform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|solutionrelative:ampmeasure\\ampmeasureform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|E:\\code\\AmpMeasure\\ampmeasure\\ampmeasureform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form",
-      "RelativeMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|solutionrelative:ampmeasure\\ampmeasureform.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}|Form"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|e:\\code\\ampmeasure\\ampmeasure\\ampmeasureform.grid.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|solutionrelative:ampmeasure\\ampmeasureform.grid.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|e:\\code\\ampmeasure\\ampmeasure\\ampmeasureform.designer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2DE8DBAD-3F1A-4F36-99B5-8F8906476527}|AmpMeasure\\AmpMeasure.csproj|solutionrelative:ampmeasure\\ampmeasureform.designer.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
   "DocumentGroupContainers": [
@@ -26,33 +14,11 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 2,
+          "SelectedChildIndex": 1,
           "Children": [
             {
-              "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "AmpMeasureForm.Designer.cs",
-              "DocumentMoniker": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.Designer.cs",
-              "RelativeDocumentMoniker": "AmpMeasure\\AmpMeasureForm.Designer.cs",
-              "ToolTip": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.Designer.cs",
-              "RelativeToolTip": "AmpMeasure\\AmpMeasureForm.Designer.cs",
-              "ViewState": "AgIAAJUBAAAAAAAAAIBZwAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-13T00:30:18.69Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 2,
-              "Title": "AmpMeasureForm.Grid.cs",
-              "DocumentMoniker": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.Grid.cs",
-              "RelativeDocumentMoniker": "AmpMeasure\\AmpMeasureForm.Grid.cs",
-              "ToolTip": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.Grid.cs",
-              "RelativeToolTip": "AmpMeasure\\AmpMeasureForm.Grid.cs",
-              "ViewState": "AgIAAKsAAAAAAAAAAIBZwAAAAAAAAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-13T00:29:34.07Z",
-              "EditorCaption": ""
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
             },
             {
               "$type": "Document",
@@ -62,21 +28,10 @@
               "RelativeDocumentMoniker": "AmpMeasure\\AmpMeasureForm.cs",
               "ToolTip": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.cs",
               "RelativeToolTip": "AmpMeasure\\AmpMeasureForm.cs",
-              "ViewState": "AgIAAEgAAAAAAAAAAAAAAFQAAAAfAAAAAAAAAA==",
+              "ViewState": "AgIAAAABAAAAAAAAAAA6wAAAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-13T00:14:12.098Z",
+              "WhenOpened": "2025-12-13T01:16:46.87Z",
               "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
-              "Title": "AmpMeasureForm.cs [Design]",
-              "DocumentMoniker": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.cs",
-              "RelativeDocumentMoniker": "AmpMeasure\\AmpMeasureForm.cs",
-              "ToolTip": "E:\\code\\AmpMeasure\\AmpMeasure\\AmpMeasureForm.cs [Design]",
-              "RelativeToolTip": "AmpMeasure\\AmpMeasureForm.cs [Design]",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2025-12-13T00:11:59.233Z"
             }
           ]
         }
