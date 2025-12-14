@@ -12,11 +12,15 @@ namespace AmpMeasure
             dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
             dataGridView1.Dock = DockStyle.Fill;
             dataGridView1.RowTemplate.Height = 25;
+            dataGridView1.AllowUserToAddRows = false;
 
             foreach (DataGridViewColumn col in dataGridView1.Columns)
             {
                 col.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
             }
+
+            // Standardize Power In to 3 decimal places
+            colPowerIn.DefaultCellStyle.Format = "N3";
 
             colRMSVolts.ReadOnly = true;
             colPowerIn.ReadOnly = true;

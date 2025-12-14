@@ -31,10 +31,67 @@ namespace AmpMeasure
         [DllImport("user32.dll", CharSet = CharSet.Auto)] 
         extern static bool DestroyIcon(IntPtr handle);
 
+        public ContextMenuStrip gridContextMenu;
+
         public AmpMeasureMain()
         {
             InitializeComponent();
             this.SuspendLayout(); // Suspend layout as early as possible
+
+            // Add context menu to grid
+            gridContextMenu = new ContextMenuStrip();
+            gridContextMenu.Items.Add("Add Row", null, (s, e) => JumpToNewEntry());
+            gridContextMenu.Items.Add("Delete Row", null, (s, e) =>
+            {
+                if (dataGridView1.CurrentRow != null && !dataGridView1.CurrentRow.IsNewRow)
+                    dataGridView1.Rows.RemoveAt(dataGridView1.CurrentRow.Index);
+            });
+            gridContextMenu.Items.Add(new ToolStripSeparator());
+            gridContextMenu.Items.Add("Copy", null, (s, e) =>
+            {
+                if (dataGridView1.GetCellCount(DataGridViewElementStates.Selected) > 0)
+                {
+                    try
+                    {
+                        Clipboard.SetDataObject(dataGridView1.GetClipboardContent());
+                    }
+                    catch { }
+                }
+            });
+            gridContextMenu.Items.Add("Paste", null, (s, e) =>
+            {
+                if (Clipboard.ContainsText())
+                {
+                    string clipboardText = Clipboard.GetText();
+                    var cells = dataGridView1.SelectedCells;
+                    if (cells.Count > 0)
+                    {
+                        var lines = clipboardText.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        int startRow = cells[0].RowIndex;
+                        int startCol = cells[0].ColumnIndex;
+                        for (int i = 0; i < lines.Length && startRow + i < dataGridView1.RowCount; i++)
+                        {
+                            var values = lines[i].Split('\t');
+                            for (int j = 0; j < values.Length && startCol + j < dataGridView1.ColumnCount; j++)
+                            {
+                                if (!dataGridView1.Columns[startCol + j].ReadOnly)
+                                    dataGridView1[startCol + j, startRow + i].Value = values[j];
+                            }
+                        }
+                    }
+                }
+            });
+            dataGridView1.ContextMenuStrip = gridContextMenu;
+
+            // Ensure calculations update immediately on cell value change
+            this.dataGridView1.CellValueChanged += (s, e) =>
+            {
+                if (e.RowIndex >= 0 && e.RowIndex < dataGridView1.RowCount)
+                {
+                    dataGridView1.EndEdit();
+                    CalculateVirtualRow(e.RowIndex);
+                }
+            };
 
             // Only run at runtime, not in the designer
             if (System.ComponentModel.LicenseManager.UsageMode == System.ComponentModel.LicenseUsageMode.Designtime)
@@ -110,11 +167,12 @@ namespace AmpMeasure
                 AddInitialRows(1);
                 // Set fixed width for first run to fit all columns
                 this.Width = 1200;
-                // Set focus to the first editable cell (Peak Volts)
+                // Set focus to the grid and the first editable cell (Peak Volts)
                 this.Shown += (s, e) =>
                 {
                     if (dataGridView1.Rows.Count > 0 && dataGridView1.Columns.Count > 0)
                     {
+                        dataGridView1.Focus();
                         dataGridView1.CurrentCell = dataGridView1[0, 0];
                         dataGridView1.BeginEdit(true);
                     }
@@ -124,6 +182,9 @@ namespace AmpMeasure
             this.ResumeLayout(true); // Resume layout after all theming and initialization
 
             dataGridView1.Refresh();
+
+            // Ensure grid row count matches data after all initialization
+            SetVirtualRowCount(_virtualDataStore.Count);
 
             // Log app startup only in debug mode
             if (IsDebugMode())
@@ -287,6 +348,17 @@ namespace AmpMeasure
                 }
                 Application.Restart();
             }
+        }
+
+        // Ensure Ctrl+N works regardless of focus
+        protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+        {
+            if (keyData == (Keys.Control | Keys.N))
+            {
+                JumpToNewEntry();
+                return true;
+            }
+            return base.ProcessCmdKey(ref msg, keyData);
         }
     }
 }

@@ -121,7 +121,7 @@ namespace AmpMeasure
             {
                 _virtualDataStore.RemoveAt(e.Row.Index);
                 _virtualCellTags.Remove(e.Row.Index);
-                
+                SetVirtualRowCount(_virtualDataStore.Count); // Ensure row count matches data after delete
                 _isDirty = true;
                 UpdateTitle();
             }
